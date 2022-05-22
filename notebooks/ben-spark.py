@@ -140,6 +140,7 @@ print("Should be:", 278.546, "km")
 
 # + magic_args="-o stop_id_in_radius_list" language="spark"
 # stop_id_in_radius_list = stops_in_radius.select(stops_in_radius.STOP_ID)
+# stop_id_in_radius_list.write.save('/user/benhaim/final-project/stop_ids_in_radius.csv', format='csv', mode='append')
 # -
 
 stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
@@ -149,8 +150,38 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 # + language="spark"
 # print(stops_in_radius.count())
 # stops_in_radius.show()
+
+# + language="spark"
+# stopw = stops_in_radius.select(stops_in_radius.STOP_ID, stops_in_radius.STOP_NAME, stops_in_radius.STOP_LAT, stops_in_radius.STOP_LON, stops_in_radius.PARENT_STATION)
+# stopw.show()
+
+# + language="spark"
+#
+#
+#
+# stopw2 = stopw.withColumnRenamed("STOP_ID","STOP_ID_2").withColumnRenamed("STOP_NAME","STOP_NAME_2").withColumnRenamed("STOP_LAT","STOP_LAT_2")\
+#     .withColumnRenamed("STOP_LON","STOP_LON_2").withColumnRenamed("PARENT_STATION","PARENT_STATION_2")
+# stopw_cross = stopw.crossJoin(stopw2)
+# size = stopw_cross.count()
+# print(size, 2394*2394, "Equal : ", size==2394*2394)
+# stopw_cross.show()
+
+# + language="spark"
+# max_walk_distance_km = 0.5
+# stopw_dist = stopw_cross.withColumn('walk_distance',distance_gps(F.struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, stopw_cross.STOP_LAT_2, stopw_cross.STOP_LON_2)))
+# stopw_dist_500m = stopw_dist.filter(stopw_dist.walk_distance<=max_walk_distance_km).cache()
+# stopw_dist_500m.show()
+
+# + language="spark"
+# stopw_500m.sample(0.001).show(50)
+
+# + language="spark"
+# stopw_500m.count()
+
+# + magic_args="-o stopw_500m -n -1" language="spark"
+# stopw_500m
 # -
 
-
+stopw_500m
 
 
