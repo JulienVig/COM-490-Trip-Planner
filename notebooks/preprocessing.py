@@ -236,10 +236,10 @@ cur.execute(query)
 
 query = """
 CREATE EXTERNAL TABLE {0}.transfers(
-        MYSTERY_A string,
-        MYSTERY_B string,
-        MYSTERY_C string,
-        MYSTERY_D string
+        from_stop_id string,
+        to_stop_id string,
+        transfer_type string,
+        min_transfer_time string
     )
     PARTITIONED BY (year STRING, month STRING)
     ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
