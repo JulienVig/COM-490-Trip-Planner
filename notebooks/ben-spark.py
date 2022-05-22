@@ -157,8 +157,6 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 
 # + language="spark"
 #
-#
-#
 # stopw2 = stopw.withColumnRenamed("STOP_ID","STOP_ID_2").withColumnRenamed("STOP_NAME","STOP_NAME_2").withColumnRenamed("STOP_LAT","STOP_LAT_2")\
 #     .withColumnRenamed("STOP_LON","STOP_LON_2").withColumnRenamed("PARENT_STATION","PARENT_STATION_2")
 # stopw_cross = stopw.crossJoin(stopw2)
@@ -169,7 +167,7 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 # + language="spark"
 # max_walk_distance_km = 0.5
 # stopw_dist = stopw_cross.withColumn('walk_distance',distance_gps(F.struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, stopw_cross.STOP_LAT_2, stopw_cross.STOP_LON_2)))
-# stopw_dist_500m = stopw_dist.filter(stopw_dist.walk_distance<=max_walk_distance_km).cache()
+# stopw_dist_500m = stopw_dist.filter(stopw_dist.walk_distance<=max_walk_distance_km).filter(stopw_dist.STOP_NAME!=stopw_dist.STOP_NAME_2).cache()
 # stopw_dist_500m.show()
 
 # + language="spark"
@@ -182,6 +180,34 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 # stopw_500m
 # -
 
-stopw_500m
+(stopw_500m["STOP_NAME"]!=stopw_500m["STOP_NAME_2"]).sum()
+
+(stopw_500m["walk_distance"]!=0.0).sum()
+
+for index, row in stopw_500m.iterrows():
+    if (index<20):
+        print(row['STOP_NAME'], row['STOP_NAME_2'], row['walk_distance'])
+
+# +
+from collections import defaultdict
+import math
+
+walk_dict = defaultdict(list)
+
+filter_self_walk=True
+
+stopw_500m = stopw_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])
+
+if filter_self_walk:
+    stopw_500m=stopw_500m[stopw_500m["STOP_NAME"]!=stopw_500m["STOP_NAME_2"]]
+    
+for index, row in stopw_500m.iterrows():
+    walk_dict[row['STOP_NAME']].append((row['STOP_NAME_2'], row['walk_distance']))
+
+for key in walk_dict:
+    print("===STOP", key,"===")
+    for (ostop, dist) in walk_dict[key]:
+        print(ostop, "at a distance of ", math.ceil(dist*1000),"m")
+# -
 
 
