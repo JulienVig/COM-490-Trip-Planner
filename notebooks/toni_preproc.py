@@ -127,7 +127,7 @@ g.set_yscale("log")
 # ## adding stationName
 # stations = stations.withColumn("station_id", stations.STOP_ID).drop("STOP_ID")
 # timetableRouteArrival = timetable.join(stations, stations.station_id == timetable.stop_id)
-# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id"])
+# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id", "trip_id"])
 # timetableRouteArrival = timetableRouteArrival.dropDuplicates().cache()
 # print(timetableRouteArrival.count())
 # print(timetableRouteArrival.show(10))
@@ -160,7 +160,7 @@ allTimetableRouteArrival
 
 # + language="spark"
 # allTimetableRouteArrival.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save("/user/magron/sbb_prep_data/timetable.csv")
+#    .option("header", "true").save("/user/magron/sbb_prep_data/timetableFixed.csv")
 # -
 
 # ## Construction of station
@@ -195,5 +195,23 @@ allTimetableRouteArrival
 # -
 
 stationsDB.to_csv("../data/stations.csv")
+
+# ## Building Stops 
+#
+# RouteStops : 
+#
+# - id, 
+# - next_stop, 
+# - travel_time,
+# - idx_on_rout
+
+# + language="spark"
+# routeStops = routeStops.join(stations, routeStops.stop_id == stations.station_id, "left").dropDuplicates().cache()
+
+# + language="spark"
+# routeStops.show(5)
+# -
+
+
 
 
