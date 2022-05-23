@@ -153,7 +153,13 @@ g.set_yscale("log")
 
 waiting_times.to_csv("../data/waiting_times.csv")
 
+## too long
+# %%spark -o allTimetableRouteArrival -n -1
+allTimetableRouteArrival
 
+# + language="spark"
+# allTimetableRouteArrival.write.csv("/user/magron/final_project/timetable")
+# -
 
 # ## Construction of station
 

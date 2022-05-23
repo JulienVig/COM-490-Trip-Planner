@@ -92,6 +92,8 @@ hdfs dfs -ls /user/magron/final_project/timetableRouteArrival.csv
 hdfs dfs -rm -r /user/magron/final_project/timetableRouteArrival.csv
 ```
 
+## Retriving a file in remote hdfs 
+
 ```bash
 
 ```
