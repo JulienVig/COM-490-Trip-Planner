@@ -77,5 +77,21 @@ hdfs dfs -cp -R /user/benhaim/final-project/stop_walking_time/* /user/benhaim/fi
 ```
 
 ```bash
+hdfs dfs -cat /data/sbb/part_orc/transfers/year=2020/month=01/day=01/000000_0 | head
+```
+
+```bash
+hdfs dfs -mkdir /user/magron/final_project
+```
+
+```bash
+hdfs dfs -ls /user/magron/final_project/timetableRouteArrival.csv
+```
+
+```bash
+hdfs dfs -rm -r /user/magron/final_project/timetableRouteArrival.csv
+```
+
+```bash
 
 ```
