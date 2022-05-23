@@ -1,14 +1,5 @@
 # # Create Spark Session
 
-# + language="spark"
-# ## SPARK IMPORTS
-# from functools import reduce
-# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime
-# from pyspark.sql.functions import countDistinct, concat
-# from pyspark.sql.functions import udf, explode
-# from pyspark.sql.types import ArrayType, StringType
-# -
-
 import os
 # %load_ext sparkmagic.magics
 from datetime import datetime
@@ -17,6 +8,15 @@ server = server = "http://iccluster029.iccluster.epfl.ch:8998"
 from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
                              cell="""{{ "name":"{0}-final_project", "executorMemory":"4G", "executorCores":4, "numExecutors":10 }}""".format(username))
+
+# + language="spark"
+# ## SPARK IMPORTS
+# from functools import reduce
+# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list
+# from pyspark.sql.functions import countDistinct, concat
+# from pyspark.sql.functions import udf, explode
+# from pyspark.sql.types import ArrayType, StringType
+# -
 
 get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
@@ -125,8 +125,9 @@ g.set_yscale("log")
 
 # + language="spark"
 # ## adding stationName
-# timetableRouteArrival = timetable.join(stations, stations.STOP_ID == timetable.stop_id)
-# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id"])
+# stations = stations.withColumn("station_id", stations.STOP_ID).drop("STOP_ID")
+# timetableRouteArrival = timetable.join(stations, stations.station_id == timetable.stop_id)
+# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id"])
 # timetableRouteArrival = timetableRouteArrival.dropDuplicates().cache()
 # print(timetableRouteArrival.count())
 # print(timetableRouteArrival.show(10))
@@ -158,34 +159,41 @@ waiting_times.to_csv("../data/waiting_times.csv")
 allTimetableRouteArrival
 
 # + language="spark"
-# allTimetableRouteArrival.write.csv("/user/magron/final_project/timetable")
+# allTimetableRouteArrival.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save("/user/magron/sbb_prep_data/timetable.csv")
 # -
 
 # ## Construction of station
 
 # + language="spark"
-# stations.show()
+# stations
 
 # + language="spark"
 #
-# stations = stations.join(sel_stops, sel_stops._c0 == stations.STOP_ID, "inner").cache()
+# stations = stations.join(sel_stops, sel_stops._c0 == stations.station_id, "inner").cache()
 # print(stations.count())
-# stations.show()
-
-# + magic_args="-o timetableRouteArrival -n -1" language="spark"
-# timetableRouteArrival
-
-# + language="spark"
+# timetables = allTimetableRouteArrival
 # stations.show()
 
 # + language="spark"
 #
-# timetableRouteArrival = stations.join(timetableRouteArrival, timetableRouteArrival.stop_id == stations.STOP_ID).select(["STOP_NAME", "arrival_time_complete_unix", "route_id"])
-# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("-"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "route_id"])
+# stations = stations.select(["STOP_NAME", "STOP_LAT", "STOP_LON", "station_id"])
+# routeStops = timetables.select(["end_route_stop_id", "stop_id"]).dropDuplicates()
+#
+# stationsDB = routeStops.join(stations, stations.station_id == routeStops.stop_id)\
+#         .groupBy(["station_Id", "STOP_NAME", "STOP_LAT", "STOP_LON"])\
+#         .agg(collect_list("end_route_stop_id")).cache()
+# stationsDB.show()
+
 
 # + language="spark"
-# stoptimes = spark.read.orc("/data/sbb/part_orc/stop_times")
-# stoptimes.show()
+# stationsDB.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save("/user/magron/sbb_prep_data/stations.csv")
+
+# + magic_args="-o stationsDB" language="spark"
+# stationsDB
 # -
+
+stationsDB.to_csv("../data/stations.csv")
 
 
