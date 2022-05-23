@@ -1,9 +1,19 @@
 # # Create Spark Session
 
+# + language="spark"
+# ## SPARK IMPORTS
+# from functools import reduce
+# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime
+# from pyspark.sql.functions import countDistinct, concat
+# from pyspark.sql.functions import udf, explode
+# from pyspark.sql.types import ArrayType, StringType
+# -
+
 import os
 # %load_ext sparkmagic.magics
+from datetime import datetime
 username = os.environ['RENKU_USERNAME']
-server = 'http://iccluster044.iccluster.epfl.ch:10000'
+server = server = "http://iccluster029.iccluster.epfl.ch:8998"
 from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
                              cell="""{{ "name":"{0}-final_project", "executorMemory":"4G", "executorCores":4, "numExecutors":10 }}""".format(username))
@@ -12,34 +22,11 @@ get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
 )
 
-# + language="spark"
-# istdaten = spark.read.orc("/data/sbb/part_orc/istdaten")
-# istdaten.printSchema()
-# + language="spark"
-# istdaten.show(5)
-
+# ## Loading selected stations
 
 # + language="spark"
-# transfers = spark.read.orc("/data/sbb/part_orc/transfers")
-# transfers.printSchema()
-
-# + language="spark"
-# transfers.show(5)
-
-# + language="spark"
-# calendar = spark.read.orc("/data/sbb/part_orc/calendar")
-# calendar.printSchema()
-
-# + language="spark"
-# calendar = spark.read.orc("/data/sbb/part_orc/calendar")
-# calendar.printSchema()
-
-# + language="spark"
-# stations = spark.read.csv("/data/sbb/csv/allstops/stop_locations.csv")
-
-# + language="spark"
-# from functools import reduce
 #
+# stations = spark.read.csv("/data/sbb/csv/allstops/stop_locations.csv")
 # oldColumns = stations.schema.names
 # newColumns = ["STOP_ID", "STOP_NAME", "STOP_LAT", "STOP_LON", "LOCATION_TYPE", "PARENT_STATION"]
 #
@@ -47,7 +34,7 @@ get_ipython().run_line_magic(
 # stations.printSchema()
 # stations.show()
 # -
-# ## Building timetables
+# ## Building timetable
 
 
 # + language="spark"
@@ -60,7 +47,7 @@ get_ipython().run_line_magic(
 
 
 # + language="spark"
-# from pyspark.sql.functions import countDistinct, concat
+#
 # ## number of trips
 # print("Number of stop times : ")
 # print(stopt.count())
@@ -76,38 +63,28 @@ get_ipython().run_line_magic(
 # stopt = stopt.filter("year == 2020").filter("month == 5").filter("day >= 13").filter("day < 17").cache()
 # -
 
-# ## We select the stops that are withing the range 
+# ### We select the stops within range
 
 # + language="spark"
+#
 # stopt = stopt.select(["trip_id", "arrival_time", "departure_time", "stop_id", "stop_sequence", "drop_off_type","year", "month", "day"])
-# stopt.show()
+# stopt = stopt.join(sel_stops, sel_stops._c0 == stopt.stop_id, "inner")
 # -
 
-# ## We select the stops within range
+# ### Selecting timestamps
 
 # + language="spark"
-# stopt = stopt.join(sel_stops, sel_stops._c0 == stopt.stop_id, "inner")
-
-# + language="spark"
-# from pyspark.sql.functions import col,lit
+#
 # stopt = stopt.withColumn("arrival_time_complete", \
 #                          concat(col("year"), lit("/"), col("month"), lit("/"), col("day"), lit(" "), col("arrival_time")))
 # stopt = stopt.withColumn("departure_time_complete", \
 #                          concat(col("year"), lit("/"), col("month"), lit("/"), col("day"), lit(" "), col("departure_time")))
+#
+# stopt = stopt.withColumn('arrival_time_complete_unix', unix_timestamp('arrival_time_complete', "yyyy/MM/dd HH:mm:ss"))
+# stopt = stopt.withColumn('departure_time_complete_unix', unix_timestamp('departure_time_complete', "yyyy/MM/dd HH:mm:ss"))
 # stopt = stopt.cache()
 #
 # stopt.select(["arrival_time_complete", "departure_time_complete"]).show()
-
-# + language="spark"
-# from datetime import datetime
-# from pyspark.sql.functions import unix_timestamp, from_unixtime
-#
-# ## computing spark time 
-# stopt = stopt.withColumn('arrival_time_complete_unix', unix_timestamp('arrival_time_complete', "yyyy/MM/dd HH:mm:ss"))
-# stopt = stopt.withColumn('departure_time_complete_unix', unix_timestamp('departure_time_complete', "yyyy/MM/dd HH:mm:ss"))
-
-# + language="spark"
-# stopt.show()
 
 # + language="spark"
 # finalCols = ["trip_id", "arrival_time_complete", "departure_time_complete", "arrival_time_complete_unix", "departure_time_complete_unix", "stop_id"]
@@ -135,35 +112,48 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45)
 g.set_yscale("log")
 # -
 
-# ## Selection of stops within the right radius
-
-# ## Get route id
-
-# + language="spark"
-# spark.read.orc("/data/sbb/part_orc/trips").show()
+# ### Incorpore route id
 
 # + language="spark"
 # ## keep arrival
 # trips = spark.read.orc("/data/sbb/part_orc/trips").select(["route_id", "trip_id"])
 # trips.show(5)
-
-# + language="spark"
-# stopt.count()
-
-# + language="spark"
 # timetable = stopt.join(trips, "trip_id", "inner")
+#
+#
+#
 
 # + language="spark"
-# timetable = timetable.withColumn("route_stop_id", concat(col("route_id"), lit("-"), col("stop_id"))).select(["route_stop_id", "arrival_time_complete_unix", "route_id", "stop_id"])
-# timetable.show(10)
-
-# + language="spark"
-# timetableRouteArrival = timetable.dropDuplicates().cache()
-# timetableRouteArrival.show()
-
-# + language="spark"
-# timetableRouteArrival.write.csv("/user/magron/final_project/timetableRouteArrivalFilteredFinal.csv")
+# ## adding stationName
+# timetableRouteArrival = timetable.join(stations, stations.STOP_ID == timetable.stop_id)
+# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id"])
+# timetableRouteArrival = timetableRouteArrival.dropDuplicates().cache()
+# print(timetableRouteArrival.count())
+# print(timetableRouteArrival.show(10))
 # -
+
+# ### We duplicate the routeStops into arrival and departure
+
+# + magic_args="-o waiting_times" language="spark"
+# duplicate_marking_function = udf(lambda n : ["A", "D"], ArrayType(StringType()))
+# allTimetableRouteArrival = timetableRouteArrival.withColumn("duplicate_mark", duplicate_marking_function(timetableRouteArrival.route_id))
+# allTimetableRouteArrival = allTimetableRouteArrival.withColumn("end", explode(allTimetableRouteArrival.duplicate_mark)).drop("duplicate_mark")
+# allTimetableRouteArrival = allTimetableRouteArrival.withColumn("end_route_stop_id", concat(col("route_stop_id"), lit("$"), col("end"))).dropDuplicates().cache()
+# waiting_times = allTimetableRouteArrival.withColumn("wait_weight", col("departure_time_complete_unix") - col("arrival_time_complete_unix")).select(["wait_weight", "route_stop_id"]).dropDuplicates().cache()
+# allTimetableRouteArrival.show()
+
+# + language="spark"
+# waiting_times.show() 
+# print("number of waiting edges : ")
+# print(waiting_times.count())
+# allTimetableRouteArrival.show()
+# print("number of routeStops :")
+# print(allTimetableRouteArrival.count())
+# -
+
+waiting_times.to_csv("../data/waiting_times.csv")
+
+
 
 # ## Construction of station
 
