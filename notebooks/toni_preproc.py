@@ -1,5 +1,6 @@
 # # Create Spark Session
 
+# +
 import os
 # %load_ext sparkmagic.magics
 from datetime import datetime
@@ -9,18 +10,21 @@ from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
                              cell="""{{ "name":"{0}-final_project", "executorMemory":"4G", "executorCores":4, "numExecutors":10 }}""".format(username))
 
-# + language="spark"
-# ## SPARK IMPORTS
-# from functools import reduce
-# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list
-# from pyspark.sql.functions import countDistinct, concat
-# from pyspark.sql.functions import udf, explode
-# from pyspark.sql.types import ArrayType, StringType
+REMOTE_PATH = "/group/abiskop1/project_data/"
 # -
 
 get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
 )
+
+# + language="spark"
+# ## SPARK IMPORTS
+# from functools import reduce
+# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list
+# from pyspark.sql.functions import countDistinct, concat
+# from pyspark.sql.functions import udf, explode, split
+# from pyspark.sql.types import ArrayType, StringType
+# -
 
 # ## Loading selected stations
 
@@ -87,7 +91,7 @@ get_ipython().run_line_magic(
 # stopt.select(["arrival_time_complete", "departure_time_complete"]).show()
 
 # + language="spark"
-# finalCols = ["trip_id", "arrival_time_complete", "departure_time_complete", "arrival_time_complete_unix", "departure_time_complete_unix", "stop_id"]
+# finalCols = ["trip_id", "arrival_time_complete", "departure_time_complete", "arrival_time_complete_unix", "departure_time_complete_unix", "stop_id", "stop_sequence"]
 # stopt = stopt.select(finalCols)
 # stopt.show()
 
@@ -124,13 +128,14 @@ g.set_yscale("log")
 #
 
 # + language="spark"
-# ## adding stationName
+# # adding stationName
 # stations = stations.withColumn("station_id", stations.STOP_ID).drop("STOP_ID")
 # timetableRouteArrival = timetable.join(stations, stations.station_id == timetable.stop_id)
-# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id", "trip_id"])
+# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id", "stop_sequence"])
+#
 # timetableRouteArrival = timetableRouteArrival.dropDuplicates().cache()
 # print(timetableRouteArrival.count())
-# print(timetableRouteArrival.show(10))
+# timetableRouteArrival.show(10)
 # -
 
 # ### We duplicate the routeStops into arrival and departure
@@ -140,7 +145,9 @@ g.set_yscale("log")
 # allTimetableRouteArrival = timetableRouteArrival.withColumn("duplicate_mark", duplicate_marking_function(timetableRouteArrival.route_id))
 # allTimetableRouteArrival = allTimetableRouteArrival.withColumn("end", explode(allTimetableRouteArrival.duplicate_mark)).drop("duplicate_mark")
 # allTimetableRouteArrival = allTimetableRouteArrival.withColumn("end_route_stop_id", concat(col("route_stop_id"), lit("$"), col("end"))).dropDuplicates().cache()
+# routeStops = allTimetableRouteArrival
 # waiting_times = allTimetableRouteArrival.withColumn("wait_weight", col("departure_time_complete_unix") - col("arrival_time_complete_unix")).select(["wait_weight", "route_stop_id"]).dropDuplicates().cache()
+# allTimetableRouteArrival = allTimetableRouteArrival.drop("sequence_number")
 # allTimetableRouteArrival.show()
 
 # + language="spark"
@@ -160,7 +167,7 @@ allTimetableRouteArrival
 
 # + language="spark"
 # allTimetableRouteArrival.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save("/user/magron/sbb_prep_data/timetableFixed.csv")
+#    .option("header", "true").save(REMOTE_PATH + "timetable.csv")
 # -
 
 # ## Construction of station
@@ -178,9 +185,9 @@ allTimetableRouteArrival
 # + language="spark"
 #
 # stations = stations.select(["STOP_NAME", "STOP_LAT", "STOP_LON", "station_id"])
-# routeStops = timetables.select(["end_route_stop_id", "stop_id"]).dropDuplicates()
+# routeStopsSimple = timetables.select(["end_route_stop_id", "stop_id"]).dropDuplicates()
 #
-# stationsDB = routeStops.join(stations, stations.station_id == routeStops.stop_id)\
+# stationsDB = routeStopsSimple.join(stations, stations.station_id == routeStops.stop_id)\
 #         .groupBy(["station_Id", "STOP_NAME", "STOP_LAT", "STOP_LON"])\
 #         .agg(collect_list("end_route_stop_id")).cache()
 # stationsDB.show()
@@ -188,7 +195,7 @@ allTimetableRouteArrival
 
 # + language="spark"
 # stationsDB.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save("/user/magron/sbb_prep_data/stations.csv")
+#    .option("header", "true").save(REMOTE_PATH + "stations.csv")
 
 # + magic_args="-o stationsDB" language="spark"
 # stationsDB
@@ -210,8 +217,61 @@ stationsDB.to_csv("../data/stations.csv")
 
 # + language="spark"
 # routeStops.show(5)
+# + language="spark"
+# finalCols = ["STOP_NAME", "end_route_stop_id", "route_stop_id", "departure_time_complete_unix", "arrival_time_complete_unix", "stop_sequence", "route_id", "stop_sequence", "end"]
+# routeStops = routeStops.join(stations, stations.station_id == routeStops.stop_id, "left").select(finalCols)
+
+# + language="spark"
+# ## show the schema
+# routeStops.sort("end_route_stop_id", "stop_sequence").show()
+
+# + language="spark"
+# routeStops.drop("departure_time_complete_unix").drop("arrival_time_complete_unix").dropDuplicates().count()
+
+# + language="spark"
+# arrivals = routeStops.filter(routeStops.end == "A")
+# departures = routeStops.filter(routeStops.end == "D")
+# print(arrivals.count())
+# print(departures.count())
+
+# + language="spark"
+# route_stops_cols = ["STOP_NAME", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "travel_time", "stop_sequence"]
+
+# + language="spark"
+# ## points to the matching end
+# departures = departures.withColumn("matching_arrival", col("stop_sequence") + 1)
+# targets = arrivals.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "arrival_time_complete_unix"])
+# targets = targets.withColumnRenamed("end_route_stop_id", "target_end_route_stop_id")
+# targets = targets.withColumnRenamed("stop_sequence", "target_sequence")
+# targets = targets.withColumnRenamed("route_stop_id", "target_route_stop_id")
+# targets = targets.withColumnRenamed("arrival_time_complete_unix", "next_arrival_time")
+# departures = departures.join(targets, (targets.target_route_stop_id == departures.route_stop_id) & (targets.target_sequence == departures.matching_arrival))\
+#             .select(["STOP_NAME", "stop_sequence", "departure_time_complete_unix", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "next_arrival_time"])\
+#             .dropDuplicates()\
+#             .cache()
+
+# + language="spark"
+# departures = departures.withColumn("travel_time", col("next_arrival_time") - col("departure_time_complete_unix"))
+# departures = departures.select(route_stops_cols)\
+#             .dropDuplicates().cache()
+# print(departures.count())
+# departures.show(5)
+
+# + language="spark"
+# arrivals = arrivals.withColumn("travel_time", col("departure_time_complete_unix") - col("arrival_time_complete_unix"))
+# arrivals = arrivals.withColumn("target_end_route_stop_id", \
+#                                concat(split(col("end_route_stop_id"), "$")[0],split(col("end_route_stop_id"), "$")[1], lit("$D")))
+# arrivals = arrivals.select(route_stops_cols).dropDuplicates().cache()
+# arrivals.show(5)
+
+# + language="spark"
+# print("Route stop count : ")
+# print(routeStops.count())
+# print("Arrival count :")
+# print(arrivals.count())
+# print("Departure count :")
+# print(departures.count())
+# #assert(routeStops.count() == arrivals.count() + departures.count())
 # -
-
-
 
 
