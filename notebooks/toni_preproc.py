@@ -123,6 +123,7 @@ g.set_yscale("log")
 # trips = spark.read.orc("/data/sbb/part_orc/trips").select(["route_id", "trip_id"])
 # trips.show(5)
 # timetable = stopt.join(trips, "trip_id", "inner")
+# stopt = timetable
 #
 #
 #
@@ -131,7 +132,9 @@ g.set_yscale("log")
 # # adding stationName
 # stations = stations.withColumn("station_id", stations.STOP_ID).drop("STOP_ID")
 # timetableRouteArrival = timetable.join(stations, stations.station_id == timetable.stop_id)
-# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME"))).select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id", "stop_sequence"])
+# timetableRouteArrival = timetableRouteArrival.withColumn("route_stop_id", concat(col("route_id"), lit("$"), col("STOP_NAME")))
+# stopt = timetableRouteArrival
+# timetableRouteArrival = timetableRouteArrival.select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id", "stop_sequence"])
 #
 # timetableRouteArrival = timetableRouteArrival.dropDuplicates().cache()
 # print(timetableRouteArrival.count())
@@ -205,6 +208,13 @@ stationsDB.to_csv("../data/stations.csv")
 
 # ## Building Stops 
 #
+#
+#
+# /!\ Simply doesn't work that way :
+#
+# We actually need the trip of all the `time_stops` to match the consecutive stops properly.
+#
+#
 # RouteStops : 
 #
 # - id, 
@@ -218,6 +228,9 @@ stationsDB.to_csv("../data/stations.csv")
 # + language="spark"
 # routeStops.show(5)
 # + language="spark"
+# routeStops.show(5)
+
+# + language="spark"
 # finalCols = ["STOP_NAME", "end_route_stop_id", "route_stop_id", "departure_time_complete_unix", "arrival_time_complete_unix", "stop_sequence", "route_id", "stop_sequence", "end"]
 # routeStops = routeStops.join(stations, stations.station_id == routeStops.stop_id, "left").select(finalCols)
 
@@ -229,24 +242,35 @@ stationsDB.to_csv("../data/stations.csv")
 # routeStops.drop("departure_time_complete_unix").drop("arrival_time_complete_unix").dropDuplicates().count()
 
 # + language="spark"
-# arrivals = routeStops.filter(routeStops.end == "A")
-# departures = routeStops.filter(routeStops.end == "D")
+# arrivals = routeStops.filter(routeStops.end == "A").drop("departure_time_complete_unix").withColumnRenamed("arrival_time_complete_unix", "reached_time")
+# departures = routeStops.filter(routeStops.end == "D").drop("arrival_time_complete_unix").withColumnRenamed("departure_time_complete_unix", "reached_time")
 # print(arrivals.count())
 # print(departures.count())
+
+# + language="spark"
+# arrivals.show(5)
+# departures.show(5)
 
 # + language="spark"
 # route_stops_cols = ["STOP_NAME", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "travel_time", "stop_sequence"]
 
 # + language="spark"
 # ## points to the matching end
-# departures = departures.withColumn("matching_arrival", col("stop_sequence") + 1)
-# targets = arrivals.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "arrival_time_complete_unix"])
+# arrivals = arrivals.withColumn("matching_arrival", col("stop_sequence") - 1)
+# targets = departures.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "reached_time"])
 # targets = targets.withColumnRenamed("end_route_stop_id", "target_end_route_stop_id")
 # targets = targets.withColumnRenamed("stop_sequence", "target_sequence")
 # targets = targets.withColumnRenamed("route_stop_id", "target_route_stop_id")
-# targets = targets.withColumnRenamed("arrival_time_complete_unix", "next_arrival_time")
-# departures = departures.join(targets, (targets.target_route_stop_id == departures.route_stop_id) & (targets.target_sequence == departures.matching_arrival))\
-#             .select(["STOP_NAME", "stop_sequence", "departure_time_complete_unix", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "next_arrival_time"])\
+# targets = targets.withColumnRenamed("reached_time", "reached_time_target")
+# sel_cols = ["STOP_NAME", "stop_sequence", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id"]
+#
+#
+# terminus = arrivals.filter("matching_arrival == -1")\
+#             .select(sel_cols)\
+#             .dropDuplicates()\
+#             .cache()
+# arrivals = arrivals.join(targets, (targets.target_route_stop_id == departures.route_stop_id) & (targets.target_sequence == arrival.matching_arrival))\
+#             .select(sel_cols + ["reached_time_target"])\
 #             .dropDuplicates()\
 #             .cache()
 
@@ -272,6 +296,74 @@ stationsDB.to_csv("../data/stations.csv")
 # print("Departure count :")
 # print(departures.count())
 # #assert(routeStops.count() == arrivals.count() + departures.count())
+# + language="spark"
+# print(arrivals.select("end_route_stop_id").count())
+# print(targets.select("target_end_route_stop_id").count())
+# print(departures.withColumn("matching_arrival", col("stop_sequence") + 1).join(targets, (targets.target_route_stop_id == departures.route_stop_id) & (targets.target_sequence == departures.matching_arrival))\
+#             .select(["STOP_NAME", "stop_sequence", "departure_time_complete_unix", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "next_arrival_time"])\
+#             .dropDuplicates().count())
+
+
+# + language="spark"
+# routeStops.select("end_route_stop_id").count()
 # -
+
+# ## Builing Stops
+
+# + language="spark"
+#
+# stopTrips = stopt.select(["trip_id", "arrival_time_complete_unix", "departure_time_complete_unix", "stop_id", 'stop_sequence', "route_id", "STOP_NAME", "route_stop_id"])
+# duplicate_marking_function = udf(lambda n : ["A", "D"], ArrayType(StringType()))
+# stopTrips = stopTrips.withColumn("duplicate_mark", duplicate_marking_function(stopTrips.route_id))
+# stopTrips = stopTrips.withColumn("end", explode(stopTrips.duplicate_mark)).drop("duplicate_mark")
+# stopTrips = stopTrips.withColumn("end_route_stop_id", concat(col("route_stop_id"), lit("$"), col("end"))).dropDuplicates().cache()
+# stopTrips.cache()
+
+# + language="spark"
+# arrivals = stopTrips.filter(stopTrips.end == "A").drop("departure_time_complete_unix").withColumnRenamed("arrival_time_complete_unix", "reached_time")
+# departures = stopTrips.filter(stopTrips.end == "D").drop("arrival_time_complete_unix").withColumnRenamed("departure_time_complete_unix", "reached_time")
+
+# + language="spark"
+# targets.show(5)
+
+# + language="spark"
+# ## points to the matching end
+# arrivals = arrivals.withColumn("matching_arrival", col("stop_sequence") - 1)
+# targets = departures.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "reached_time", "trip_id"])
+# targets = targets.withColumnRenamed("end_route_stop_id", "target_end_route_stop_id")
+# targets = targets.withColumnRenamed("stop_sequence", "target_sequence")
+# targets = targets.withColumnRenamed("route_stop_id", "target_route_stop_id")
+# targets = targets.withColumnRenamed("reached_time", "reached_time_target")
+# targets = targets.withColumnRenamed("trip_id", "target_trip_id")
+#
+# sel_cols = ["STOP_NAME", "stop_sequence", "route_id", "end_route_stop_id", "route_stop_id", "end_route_stop_id", "trip_id"]
+#
+#
+# terminus = arrivals.filter("matching_arrival == -1")\
+#             .select(sel_cols)\
+#             .dropDuplicates()\
+#             .cache()
+#
+#
+# arrivals = arrivals.join(targets, (targets.target_route_stop_id == arrivals.route_stop_id) \
+#                          & (targets.target_sequence == arrivals.matching_arrival)\
+#                          & (targets.target_trip_id == arrivals.trip_id))\
+#             .select(sel_cols + ["reached_time_target"])\
+#             .dropDuplicates()\
+#             .cache()
+# -
+
+x = """cannot resolve '`target_end_route_stop_id`' given input columns: [trip_id, route_id, matching_arrival, end, reached_time, stop_id, stop_sequence, STOP_NAME, route_stop_id, end_route_stop_id];;\n'Project [STOP_NAME#5269, stop_sequence#5334, route_id#5896, end_route_stop_id#6817, route_stop_id#6091, 'target_end_route_stop_id, trip_id#5330]\n+- Filter (matching_arrival#7141 = -1)\n   +- Project [trip_id#5330, reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817, (cast(stop_sequence#5334 as int) - 1) AS matching_arrival#7141]\n      +- Project [trip_id#5330, reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817, (cast(stop_sequence#5334 as int) - 1) AS matching_arrival#7100]\n         +- Project [trip_id#5330, reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817, (cast(stop_sequence#5334 as int) - 1) AS matching_arrival#6992]\n            +- Project [trip_id#5330, arrival_time_complete_unix#5507L AS reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817]\n               +- Project [trip_id#5330, arrival_time_complete_unix#5507L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817]\n                  +- Filter (end#6797 = A)\n                     +- Deduplicate [departure_time_complete_unix#5521L, trip_id#5330, stop_sequence#5334, route_stop_id#6091, route_id#5896, end#6797, STOP_NAME#5269, stop_id#5333, end_route_stop_id#6817, arrival_time_complete_unix#5507L]\n                        +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, concat(route_stop_id#6091, $, end#6797) AS end_route_stop_id#6817]\n                           +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797]\n                              +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, duplicate_mark#6786, end#6797]\n                                 +- Generate explode(duplicate_mark#6786), false, [end#6797]\n                                    +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, <lambda>(route_id#5896) AS duplicate_mark#6786]\n                                       +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091]\n                                          +- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, ms_diff#5798L, route_id#5896, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, PARENT_STATION#5297, station_id#6032, concat(route_id#5896, $, STOP_NAME#5269) AS route_stop_id#6091]\n                                             +- Join Inner, (station_id#6032 = stop_id#5333)\n                                                :- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, ms_diff#5798L, route_id#5896]\n                                                :  +- Join Inner, (trip_id#5330 = trip_id#5898)\n                                                :     :- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, (departure_time_complete_unix#5521L - arrival_time_complete_unix#5507L) AS ms_diff#5798L]\n                                                :     :  +- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334]\n                                                :     :     +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, unix_timestamp(departure_time_complete#5494, yyyy/MM/dd HH:mm:ss, Some(Europe/Zurich)) AS departure_time_complete_unix#5521L]\n                                                :     :        +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, arrival_time_complete#5482, departure_time_complete#5494, unix_timestamp(arrival_time_complete#5482, yyyy/MM/dd HH:mm:ss, Some(Europe/Zurich)) AS arrival_time_complete_unix#5507L]\n                                                :     :           +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, arrival_time_complete#5482, concat(cast(year#5337 as string), /, cast(month#5338 as string), /, cast(day#5339 as string),  , departure_time#5332) AS departure_time_complete#5494]\n                                                :     :              +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, concat(cast(year#5337 as string), /, cast(month#5338 as string), /, cast(day#5339 as string),  , arrival_time#5331) AS arrival_time_complete#5482]\n                                                :     :                 +- Join Inner, (_c0#5360 = stop_id#5333)\n                                                :     :                    :- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339]\n                                                :     :                    :  +- Filter (day#5339 < 17)\n                                                :     :                    :     +- Filter (day#5339 >= 13)\n                                                :     :                    :        +- Filter (month#5338 = 5)\n                                                :     :                    :           +- Filter (year#5337 = 2020)\n                                                :     :                    :              +- Relation[trip_id#5330,arrival_time#5331,departure_time#5332,stop_id#5333,stop_sequence#5334,pickup_type#5335,drop_off_type#5336,year#5337,month#5338,day#5339] orc\n                                                :     :                    +- Relation[_c0#5360] csv\n                                                :     +- Project [route_id#5896, trip_id#5898]\n                                                :        +- Relation[route_id#5896,service_id#5897,trip_id#5898,trip_headsign#5899,trip_short_name#5900,direction_id#5901,year#5902,month#5903,day#5904] orc\n                                                +- Project [STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, PARENT_STATION#5297, station_id#6032]\n                                                   +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, PARENT_STATION#5297, STOP_ID#5262 AS station_id#6032]\n                                                      +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, _c5#5255 AS PARENT_STATION#5297]\n                                                         +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, _c4#5254 AS LOCATION_TYPE#5290, _c5#5255]\n                                                            +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, _c3#5253 AS STOP_LON#5283, _c4#5254, _c5#5255]\n                                                               +- Project [STOP_ID#5262, STOP_NAME#5269, _c2#5252 AS STOP_LAT#5276, _c3#5253, _c4#5254, _c5#5255]\n                                                                  +- Project [STOP_ID#5262, _c1#5251 AS STOP_NAME#5269, _c2#5252, _c3#5253, _c4#5254, _c5#5255]\n                                                                     +- Project [_c0#5250 AS STOP_ID#5262, _c1#5251, _c2#5252, _c3#5253, _c4#5254, _c5#5255]\n                                                                        +- Relation[_c0#5250,_c1#5251,_c2#5252,_c3#5253,_c4#5254,_c5#5255] csv\n"
+Traceback (most recent call last):
+  File "/hdata/sdb/hadoop/yarn/local/usercache/eric/appcache/application_1652960972356_1913/container_e05_1652960972356_1913_01_000001/pyspark.zip/pyspark/sql/dataframe.py", line 1202, in select
+    jdf = self._jdf.select(self._jcols(*cols))
+  File "/hdata/sdb/hadoop/yarn/local/usercache/eric/appcache/application_1652960972356_1913/container_e05_1652960972356_1913_01_000001/py4j-0.10.7-src.zip/py4j/java_gateway.py", line 1257, in __call__
+    answer, self.gateway_client, self.target_id, self.name)
+  File "/hdata/sdb/hadoop/yarn/local/usercache/eric/appcache/application_1652960972356_1913/container_e05_1652960972356_1913_01_000001/pyspark.zip/pyspark/sql/utils.py", line 69, in deco
+    raise AnalysisException(s.split(': ', 1)[1], stackTrace)
+AnalysisException: u"cannot resolve '`target_end_route_stop_id`' given input columns: [trip_id, route_id, matching_arrival, end, reached_time, stop_id, stop_sequence, STOP_NAME, route_stop_id, end_route_stop_id];;\n'Project [STOP_NAME#5269, stop_sequence#5334, route_id#5896, end_route_stop_id#6817, route_stop_id#6091, 'target_end_route_stop_id, trip_id#5330]\n+- Filter (matching_arrival#7141 = -1)\n   +- Project [trip_id#5330, reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817, (cast(stop_sequence#5334 as int) - 1) AS matching_arrival#7141]\n      +- Project [trip_id#5330, reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817, (cast(stop_sequence#5334 as int) - 1) AS matching_arrival#7100]\n         +- Project [trip_id#5330, reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817, (cast(stop_sequence#5334 as int) - 1) AS matching_arrival#6992]\n            +- Project [trip_id#5330, arrival_time_complete_unix#5507L AS reached_time#6962L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817]\n               +- Project [trip_id#5330, arrival_time_complete_unix#5507L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, end_route_stop_id#6817]\n                  +- Filter (end#6797 = A)\n                     +- Deduplicate [departure_time_complete_unix#5521L, trip_id#5330, stop_sequence#5334, route_stop_id#6091, route_id#5896, end#6797, STOP_NAME#5269, stop_id#5333, end_route_stop_id#6817, arrival_time_complete_unix#5507L]\n                        +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797, concat(route_stop_id#6091, $, end#6797) AS end_route_stop_id#6817]\n                           +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, end#6797]\n                              +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, duplicate_mark#6786, end#6797]\n                                 +- Generate explode(duplicate_mark#6786), false, [end#6797]\n                                    +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091, <lambda>(route_id#5896) AS duplicate_mark#6786]\n                                       +- Project [trip_id#5330, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, route_id#5896, STOP_NAME#5269, route_stop_id#6091]\n                                          +- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, ms_diff#5798L, route_id#5896, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, PARENT_STATION#5297, station_id#6032, concat(route_id#5896, $, STOP_NAME#5269) AS route_stop_id#6091]\n                                             +- Join Inner, (station_id#6032 = stop_id#5333)\n                                                :- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, ms_diff#5798L, route_id#5896]\n                                                :  +- Join Inner, (trip_id#5330 = trip_id#5898)\n                                                :     :- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334, (departure_time_complete_unix#5521L - arrival_time_complete_unix#5507L) AS ms_diff#5798L]\n                                                :     :  +- Project [trip_id#5330, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, departure_time_complete_unix#5521L, stop_id#5333, stop_sequence#5334]\n                                                :     :     +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, arrival_time_complete#5482, departure_time_complete#5494, arrival_time_complete_unix#5507L, unix_timestamp(departure_time_complete#5494, yyyy/MM/dd HH:mm:ss, Some(Europe/Zurich)) AS departure_time_complete_unix#5521L]\n                                                :     :        +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, arrival_time_complete#5482, departure_time_complete#5494, unix_timestamp(arrival_time_complete#5482, yyyy/MM/dd HH:mm:ss, Some(Europe/Zurich)) AS arrival_time_complete_unix#5507L]\n                                                :     :           +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, arrival_time_complete#5482, concat(cast(year#5337 as string), /, cast(month#5338 as string), /, cast(day#5339 as string),  , departure_time#5332) AS departure_time_complete#5494]\n                                                :     :              +- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339, _c0#5360, concat(cast(year#5337 as string), /, cast(month#5338 as string), /, cast(day#5339 as string),  , arrival_time#5331) AS arrival_time_complete#5482]\n                                                :     :                 +- Join Inner, (_c0#5360 = stop_id#5333)\n                                                :     :                    :- Project [trip_id#5330, arrival_time#5331, departure_time#5332, stop_id#5333, stop_sequence#5334, drop_off_type#5336, year#5337, month#5338, day#5339]\n                                                :     :                    :  +- Filter (day#5339 < 17)\n                                                :     :                    :     +- Filter (day#5339 >= 13)\n                                                :     :                    :        +- Filter (month#5338 = 5)\n                                                :     :                    :           +- Filter (year#5337 = 2020)\n                                                :     :                    :              +- Relation[trip_id#5330,arrival_time#5331,departure_time#5332,stop_id#5333,stop_sequence#5334,pickup_type#5335,drop_off_type#5336,year#5337,month#5338,day#5339] orc\n                                                :     :                    +- Relation[_c0#5360] csv\n                                                :     +- Project [route_id#5896, trip_id#5898]\n                                                :        +- Relation[route_id#5896,service_id#5897,trip_id#5898,trip_headsign#5899,trip_short_name#5900,direction_id#5901,year#5902,month#5903,day#5904] orc\n                                                +- Project [STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, PARENT_STATION#5297, station_id#6032]\n                                                   +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, PARENT_STATION#5297, STOP_ID#5262 AS station_id#6032]\n                                                      +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, LOCATION_TYPE#5290, _c5#5255 AS PARENT_STATION#5297]\n                                                         +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, STOP_LON#5283, _c4#5254 AS LOCATION_TYPE#5290, _c5#5255]\n                                                            +- Project [STOP_ID#5262, STOP_NAME#5269, STOP_LAT#5276, _c3#5253 AS STOP_LON#5283, _c4#5254, _c5#5255]\n                                                               +- Project [STOP_ID#5262, STOP_NAME#5269, _c2#5252 AS STOP_LAT#5276, _c3#5253, _c4#5254, _c5#5255]\n                                                                  +- Project [STOP_ID#5262, _c1#5251 AS STOP_NAME#5269, _c2#5252, _c3#5253, _c4#5254, _c5#5255]\n                                                                     +- Project [_c0#5250 AS STOP_ID#5262, _c1#5251, _c2#5252, _c3#5253, _c4#5254, _c5#5255]\n                                                                        +- Relation[_c0#5250,_c1#5251,_c2#5252,_c3#5253,_c4#5254,_c5#5255] csv\n"""
+print(x)
+
+print("y")
 
 
