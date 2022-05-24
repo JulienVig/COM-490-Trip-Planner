@@ -86,15 +86,6 @@ get_ipython().run_line_magic(
 #
 #     return R * c
 
-# +
-lat1 = 52.2296756
-lon1 = 21.0122287
-lat2 = 52.406374
-lon2 = 16.9251681
-
-print("Result:", distance_gps(lat1, lon1, lat2, lon2))
-print("Should be:", 278.546, "km")
-
 # + language="spark"
 # hb_df = stops.filter(stops.STOP_NAME == "Zürich HB")
 # hb_df.show(1)
@@ -171,15 +162,16 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 # stopw_dist_500m.show()
 
 # + language="spark"
-# stopw_500m.sample(0.001).show(50)
+# stopw_dist_500m.sample(0.001).show(50)
 
 # + language="spark"
-# stopw_500m.count()
+# stopw_dist_500m.count()
 
-# + magic_args="-o stopw_500m -n -1" language="spark"
-# stopw_500m
+# + magic_args="-o stopw_dist_500m -n -1" language="spark"
+# stopw_dist_500m
 # -
 
+stopw_500m = stopw_dist_500m
 (stopw_500m["STOP_NAME"]!=stopw_500m["STOP_NAME_2"]).sum()
 
 (stopw_500m["walk_distance"]!=0.0).sum()
@@ -200,14 +192,59 @@ stopw_500m = stopw_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])
 
 if filter_self_walk:
     stopw_500m=stopw_500m[stopw_500m["STOP_NAME"]!=stopw_500m["STOP_NAME_2"]]
+
+# 50m/ minute walking speed, computing m.s-1
+walk_speed = 50 / 60
     
 for index, row in stopw_500m.iterrows():
-    walk_dict[row['STOP_NAME']].append((row['STOP_NAME_2'], row['walk_distance']))
+    walk_dict[row['STOP_NAME']].append((row['STOP_NAME_2'], row['walk_distance']*walk_speed*1000))
+
+#for key in walk_dict:
+#    print("===STOP", key,"===")
+#    for (ostop, dist) in walk_dict[key]:
+#        print(ostop, "at a distance of ", math.ceil(dist*1000),"m")
+# +
+from typing import List, Tuple
+
+class Node:
+    def __init__(self, node_id):
+        self.node_id = node_id
+        self.arr_time: int = -1  # earliest arrival time
+        self.previous_node: Node = None  # previous node on shortest path
+        self.acc_success: float = 0  # current accumulated success
+
+class Stop(Node):
+    def __init__(self, node_id, stop_name, station):
+        super().__init__(node_id)
+        self.stop_name: str = stop_name
+        self.station: Station = station
+
+class WalkingStop(Stop):
+    def __init__(self, node_id, stop_name, station, neighbors):
+        super().__init__(node_id, stop_name, station)
+        self.neighbors = neighbors
+            
+    def set_neighbors(self, neighbors):
+        self.neighbors = neighbors
+
+
+# +
+walkingStopsList = []
 
 for key in walk_dict:
-    print("===STOP", key,"===")
-    for (ostop, dist) in walk_dict[key]:
-        print(ostop, "at a distance of ", math.ceil(dist*1000),"m")
+    walkingStopsList.append(WalkingStop(key+"_node", key+"_walk", key, None))
+    
+for walkingStop in walkingStopsList:
+    station_name = walkingStop.station
+    neighbors = walk_dict[station_name]
+    walkingStop.set_neighbors(neighbors)
 # -
+
+for walkingStop in walkingStopsList:
+    print(walkingStop.station+" neighbors :")
+    for neigh in walkingStop.neighbors:
+        print(str(neigh[0])+" : "+str(neigh[1]/60)+"min")
+
+
 
 
