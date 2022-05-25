@@ -99,5 +99,21 @@ hdfs dfs -get -f /group/abiskop1/project_data/timetable.csv ../data/timetable.cs
 ```
 
 ```bash
+hdfs dfs -get -f /group/abiskop1/project_data/arrivalsRouteStops.csv ../data/arrivalsRouteStops.csv
+```
+
+```bash
+hdfs dfs -get -f /group/abiskop1/project_data/terminus.csv ../data/terminusRouteStops.csv
+```
+
+```bash
+hdfs dfs -get -f /group/abiskop1/project_data/departures.csv ../data/departuresRouteStops.csv
+```
+
+```bash
+hdfs dfs -ls /group/abiskop1/project_data
+```
+
+```bash
 
 ```

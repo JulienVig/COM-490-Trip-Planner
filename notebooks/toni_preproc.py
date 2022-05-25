@@ -10,7 +10,7 @@ from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
                              cell="""{{ "name":"{0}-final_project", "executorMemory":"4G", "executorCores":4, "numExecutors":10 }}""".format(username))
 
-REMOTE_PATH = "/group/abiskop1/project_data/"
+
 # -
 
 get_ipython().run_line_magic(
@@ -24,6 +24,8 @@ get_ipython().run_line_magic(
 # from pyspark.sql.functions import countDistinct, concat
 # from pyspark.sql.functions import udf, explode, split
 # from pyspark.sql.types import ArrayType, StringType
+#
+# REMOTE_PATH = "/group/abiskop1/project_data/"
 # -
 
 # ## Loading selected stations
@@ -197,6 +199,9 @@ allTimetableRouteArrival
 
 
 # + language="spark"
+# stationsDB
+
+# + language="spark"
 # stationsDB.coalesce(1).write.format("com.databricks.spark.csv")\
 #    .option("header", "true").save(REMOTE_PATH + "stations.csv")
 
@@ -281,7 +286,7 @@ stationsDB.to_csv("../data/stations.csv")
 # + language="spark"
 # arrivals = arrivals.withColumn("travel_time", col("departure_time_complete_unix") - col("arrival_time_complete_unix"))
 # arrivals = arrivals.withColumn("target_end_route_stop_id", \
-#                                concat(split(col("end_route_stop_id"), "$")[0],split(col("end_route_stop_id"), "$")[1], lit("$D")))
+#                                concat(split(col("end_route_stop_id"), "$")[0], lit("$"), split(col("end_route_stop_id"), "$")[1], lit("$D")))
 # arrivals = arrivals.select(route_stops_cols).dropDuplicates().cache()
 # arrivals.show(5)
 
@@ -342,7 +347,7 @@ stationsDB.to_csv("../data/stations.csv")
 #
 # arrivals = arrivals.join(targets,  (targets.target_sequence == arrivals.matching_arrival)\
 #                                      & (targets.target_trip_id == arrivals.trip_id))\
-#             .select(sel_cols + ["reached_time_target", "target_end_route_stop_id"])\
+#             .select(["STOP_NAME", "reached_time", "stop_sequence", "end_route_stop_id", "route_stop_id", "reached_time_target", "target_end_route_stop_id"])\
 #             .dropDuplicates()\
 #             .withColumn("travel_time", col("reached_time") - col("reached_time_target"))\
 #             .select(["STOP_NAME", "stop_sequence", "end_route_stop_id", "route_stop_id", "travel_time", "target_end_route_stop_id"])\
@@ -385,6 +390,44 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 
 sample[["end_route_stop_id", "target_end_route_stop_id"]].iloc[0]
 
-sample
+# ### Adding 30 seconds to all the travel_time at 0
+
+# + language="spark"
+#
+# adding_30 = udf(lambda time : 30 if(time == 0) else time)
+# arrivals = arrivals.withColumn("travel_time", adding_30(arrivals.travel_time))
+# arrivals.show(5)
+
+# + magic_args="-o tt_distrib" language="spark"
+# tt_distrib = arrivals.groupBy("travel_time").count().sort("travel_time")
+# -
+
+plt.figure(figsize=(20, 6))
+sns.barplot(data=tt_distrib, x="travel_time", y="count")
+
+# + language="spark"
+# arrivals.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save(REMOTE_PATH + "arrivalsRouteStops.csv")
+
+# + language="spark"
+# terminus.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save(REMOTE_PATH + "terminus.csv")
+# -
+
+# ### Dealing with departures
+
+# + language="spark"
+# departures = departures.join(waiting_times, "route_stop_id")\
+#           .withColumn("target_end_route_stop_id", concat(split(col("end_route_stop_id"), "$")[0], lit("$"), split(col("end_route_stop_id"), "$")[1], lit("$A")))\
+#           .withColumnRenamed("wait_weight", "travel_time")\
+#           .select(["route_stop_id", "stop_id", "route_id", "STOP_NAME", "end_route_stop_id", "travel_time"])\
+#           .dropDuplicates()\
+#           .cache()
+# departures.show(5)       
+
+# + language="spark"
+# departures.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save(REMOTE_PATH + "departures.csv")
+# -
 
 
