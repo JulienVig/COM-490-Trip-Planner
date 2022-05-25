@@ -13,6 +13,9 @@ username = os.environ['RENKU_USERNAME']
 hiveaddr = os.environ['HIVE_SERVER2']
 (hivehost,hiveport) = hiveaddr.split(':')
 print("Operating as: {0}".format(username))
+# -
+
+hiveaddr
 
 # +
 from pyhive import hive
@@ -285,5 +288,7 @@ query = """
 SELECT * FROM {0}.stops LIMIT 10
 """.format(username)
 pd.read_sql(query, conn)
+
+
 
 
