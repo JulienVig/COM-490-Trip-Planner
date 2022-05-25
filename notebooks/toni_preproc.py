@@ -381,9 +381,10 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 # + magic_args="-o sample" language="spark"
 #
 # sample = arrivals.filter("travel_time == 0")
-# sample.count()
 # -
 
 sample[["end_route_stop_id", "target_end_route_stop_id"]].iloc[0]
+
+sample
 
 
