@@ -1,6 +1,5 @@
 # # Create Spark Session
 
-# +
 import os
 # %load_ext sparkmagic.magics
 from datetime import datetime
@@ -9,9 +8,6 @@ server = server = "http://iccluster029.iccluster.epfl.ch:8998"
 from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
                              cell="""{{ "name":"{0}-final_project", "executorMemory":"4G", "executorCores":4, "numExecutors":10 }}""".format(username))
-
-
-# -
 
 get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
