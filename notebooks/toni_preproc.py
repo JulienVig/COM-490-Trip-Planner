@@ -19,6 +19,7 @@ get_ipython().run_line_magic(
 # from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list
 # from pyspark.sql.functions import countDistinct, concat
 # from pyspark.sql.functions import udf, explode, split
+# import pyspark.sql.functions as F
 # from pyspark.sql.types import ArrayType, StringType
 #
 # REMOTE_PATH = "/group/abiskop1/project_data/"
@@ -63,6 +64,9 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # stopt = stopt.filter("year == 2020").filter("month == 5").filter("day >= 13").filter("day < 17").cache()
+
+# + language="spark"
+# stopt
 # -
 
 # ### We select the stops within range
@@ -115,6 +119,9 @@ g.set_yscale("log")
 # -
 
 # ### Incorpore route id
+
+# + language="spark"
+# spark.read.orc("/data/sbb/part_orc/trips")
 
 # + language="spark"
 # ## keep arrival
@@ -424,6 +431,45 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 # + language="spark"
 # departures.coalesce(1).write.format("com.databricks.spark.csv")\
 #    .option("header", "true").save(REMOTE_PATH + "departures.csv")
+# -
+# ## Integrity test
+#
+#
+# I don't understand but I guess I'll go with the flow
+
+# + language="spark"
+# routes = spark.read.orc("/data/sbb/part_orc/routes")
+
+
+# + language="spark"
+# example = routes.filter("year == 2020").filter("month == 5").filter("day >= 13").filter("day < 17")
+# print(example.drop("year", "month", "day").dropDuplicates().count())
+# print(example.select("route_id").dropDuplicates().count())
+
+# + language="spark"
+# arrivals = spark.read.csv("/group/abiskop1/project_data/arrivalsRouteStops.csv", header=True)
+
+# + language="spark"
+# arrivals = arrivals.withColumn("route_id", F.split(arrivals.end_route_stop_id, "$").getItem(0))
+
+# + language="spark"
+# example = example.select("route_id").dropDuplicates().rdd
+# route_ids = arrivals.select("route_id").dropDuplicates().rdd
+
+# + language="spark"
+#
+# route_ids.map(lambda x : x.route_id).take(10)
+
+# + language="spark"
+# splitter = udf(lambda rid : rid.split("$")[0])
+# route_stops = arrivals.withColumn("route_id", splitter(col("route_stop_id"))).select("route_id").dropDuplicates().rdd
+# route_stops = route_stops.map(lambda x : x.route_id)
+# example = example.map(lambda x : x.route_id)
+# print(route_stops.count())
+# route_stops.intersection(example).count()
+
+# + language="spark"
+# route_stops.take(10)
 # -
 
 
