@@ -1,6 +1,6 @@
 from typing import List, Dict, Set, Tuple
 from bisect import bisect_right
-from datetime import datetime
+from datetime import datetime, timedelta
 from scipy.stats import expon
 
 
@@ -189,7 +189,7 @@ class Path:
         self.string_representation = string_representation
 
     @staticmethod
-    def make(station: Station, stop: Stop, target_arr_time: int) -> 'Path':
+    def make(station: Station, stop: Stop, target_arr_time: int, transfer_time) -> 'Path':
         """Create a path from station and the given stop coming in"""
         route_names = set()
         node_sequence: List[Node] = [station, stop]
@@ -200,35 +200,37 @@ class Path:
             node_sequence.append(node)
             node = node.previous_node
 
-        walking_time, nb_transfers, str_representation = Path._process_sequence(node_sequence, target_arr_time)
+        walking_time, nb_transfers, str_representation = Path._process_sequence(node_sequence, target_arr_time, transfer_time)
         departure_time = target_arr_time - node_sequence[0].arr_time
         return Path(node_sequence, route_names, departure_time, walking_time, nb_transfers, str_representation)
 
     @staticmethod
-    def _process_sequence(node_sequence, target_arr_time):
+    def _process_sequence(node_sequence, target_arr_time, transfer_time):
+        transfer_time_ts = timedelta(seconds=transfer_time)
         departure = node_sequence[0]
         strings = [f"Starting journey at {departure} at time "
-                   f"{Path._convert_time_to_rw(departure.arr_time, target_arr_time)}\n"]
+                   f"{Path._convert_time_to_rw(departure.arr_time - transfer_time, target_arr_time)}\n"]
 
         nb_transfers = walking_time = 0
         current_route_start_time = 0
         current_trip_type = None  # either "transport" or "walk"
         prev_node = departure
         for n in node_sequence[1:]:
-            if type(n) == Station:
-                nb_transfers += 1
+            if (not type(n) == type(prev_node)) and not (isinstance(n, RouteStop) and isinstance(prev_node, RouteStop)):
 
                 rw_prev_arr_time = Path._convert_time_to_rw(prev_node.arr_time, target_arr_time)
                 rw_arr_time = Path._convert_time_to_rw(n.arr_time, target_arr_time)
                 if isinstance(n, Station):  # End of a trip
                     assert current_trip_type is not None
-                    duration = rw_prev_arr_time - current_route_start_time
+                    nb_transfers += 1
+                    duration = (rw_prev_arr_time - current_route_start_time).total_seconds()
                     if current_trip_type == "transport":
                         strings.append(f"\tTo {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
                     elif current_trip_type == "walk":
-                        strings.append(f"to {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
+                        strings.append(f" to {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
                         walking_time += duration
                     strings.append(f"\tDuration: {duration} seconds\n")
+                    strings.append(f"Change during 2 minutes then wait {rw_arr_time - rw_prev_arr_time}\n")
 
                 if isinstance(n, RouteStop):  # Start of a new route
                     strings.append(f"Take line {n.route_name}:\n")

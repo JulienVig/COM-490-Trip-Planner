@@ -9,8 +9,8 @@ station_H = Station("H_node", "H", 0, 0)
 station_I = Station("I_node", "I", 0, 0)
 station_Y = Station("Y_node", "Y", 0, 0)
 
-travel_times = 300
-wait_times = 120
+travel_times = 200
+wait_times = 10
 
 stop_ACC_dep = RouteStopDep("A-C_C_node_dep", "A-C_C", station_C, 0, "A-C", 'Zug', 0, None)
 stop_ACB_arr = RouteStopArr("A-C_B_node_arr", "A-C_B", station_B, 1, "A-C", 'Zug', travel_times, stop_ACC_dep)
@@ -39,19 +39,22 @@ station_C.set_stops_dep([stop_ACC_dep])
 # station_C.set_stops_arr([])
 station_G.set_stops_dep([walking_G])
 station_G.set_stops_arr([stop_GHG_arr, walking_G])
-# station_H.set_stops_dep([])
+station_H.set_stops_dep([stop_GHH_dep])
 station_H.set_stops_arr([stop_HIH_arr])
 station_I.set_stops_dep([stop_HII_dep])
 # station_I.set_stops_arr([])
 station_Y.set_stops_dep([walking_Y])
 station_Y.set_stops_arr([walking_Y])
 
-my_list = [i for i in range(0, 1200, 30)]
+target_arr_time = 10000
+my_list = [i for i in range(0, target_arr_time, 30)]
 generic_table = (my_list, [Distrib(1) for i in range(len(my_list))])
 
 table_dict = {stop_ACB_arr: generic_table, stop_ACA_arr: generic_table, stop_GHB_arr: generic_table, 
               stop_GHG_arr: generic_table, stop_HIH_arr: generic_table}
 
-table = Timetable(table_dict, 1000)
-algo = Denver(0, 0, station_Y, station_I, table, 1, 1000)
+table = Timetable(table_dict, target_arr_time)
+threshold = 0
+n_sols_expected = 1
+algo = Denver(threshold, station_Y, station_I, table, n_sols_expected, target_arr_time)
 print(algo.denver()[0])
