@@ -201,7 +201,7 @@ class Path:
             node = node.previous_node
 
         walking_time, nb_transfers, str_representation = Path._process_sequence(node_sequence, target_arr_time, transfer_time)
-        departure_time = target_arr_time - node_sequence[0].arr_time
+        departure_time = target_arr_time - node_sequence[1].arr_time
         return Path(node_sequence, route_names, departure_time, walking_time, nb_transfers, str_representation)
 
     @staticmethod
@@ -209,7 +209,7 @@ class Path:
         transfer_time_ts = timedelta(seconds=transfer_time)
         departure = node_sequence[0]
         strings = [f"Starting journey at {departure} at time "
-                   f"{Path._convert_time_to_rw(departure.arr_time - transfer_time, target_arr_time)}\n"]
+                   f"{Path._convert_time_to_rw(node_sequence[1].arr_time, target_arr_time)}\n"]
 
         nb_transfers = walking_time = 0
         current_route_start_time = 0
@@ -220,6 +220,7 @@ class Path:
 
                 rw_prev_arr_time = Path._convert_time_to_rw(prev_node.arr_time, target_arr_time)
                 rw_arr_time = Path._convert_time_to_rw(n.arr_time, target_arr_time)
+                print(rw_prev_arr_time, rw_arr_time)
                 if isinstance(n, Station):  # End of a trip
                     assert current_trip_type is not None
                     nb_transfers += 1
@@ -230,7 +231,7 @@ class Path:
                         strings.append(f" to {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
                         walking_time += duration
                     strings.append(f"\tDuration: {duration} seconds\n")
-                    strings.append(f"Change during 2 minutes then wait {rw_arr_time - rw_prev_arr_time}\n")
+                    strings.append(f"2 minutes transfer then wait {rw_arr_time - rw_prev_arr_time}\n")
 
                 if isinstance(n, RouteStop):  # Start of a new route
                     strings.append(f"Take line {n.route_name}:\n")
@@ -244,7 +245,8 @@ class Path:
                     current_trip_type = "walk"
 
             prev_node = n
-
+        
+        strings.pop()
         rw_prev_arr_time = Path._convert_time_to_rw(prev_node.arr_time, target_arr_time)
         strings.append(f"Arrival at {node_sequence[-1]} at time {rw_prev_arr_time}\n")  # Last node is a station
         str_representation = "".join(strings)
