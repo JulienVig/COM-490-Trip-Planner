@@ -9,11 +9,15 @@ station_H = Station("H_node", "H", 0, 0)
 station_I = Station("I_node", "I", 0, 0)
 station_Y = Station("Y_node", "Y", 0, 0)
 
-travel_times = 50
+travel_times = 300
+wait_times = 120
 
-stop_ACC = RouteStop("A-C_C_node", "A-C_C", station_C, None, travel_times, 0, "A-C")
-stop_ACB = RouteStop("A-C_B_node", "A-C_B", station_B, stop_ACC, travel_times, 0, "A-C")
-stop_ACA = RouteStop("A-C_A_node", "A-C_A", station_A, stop_ACB, travel_times, 0, "A-C")
+stop_ACC_arr = RouteStopArr("A-C_C_node", "A-C_C", station_C, None, travel_times, 0, "A-C")
+stop_ACC_dep = RouteStopDep("A-C_C_node", "A-C_C", station_C, stop_ACC_arr, wait_times, 0, "A-C")
+stop_ACB_arr = RouteStopArr("A-C_B_node", "A-C_B", station_B, stop_ACC_dep, travel_times, 0, "A-C")
+stop_ACB_dep = RouteStopDep("A-C_B_node", "A-C_B", station_B, stop_ACB_arr, wait_times, 0, "A-C")
+stop_ACA_arr = RouteStopArr("A-C_A_node", "A-C_A", station_A, stop_ACB_dep, travel_times, 0, "A-C")
+stop_ACA_dep = RouteStopDep("A-C_A_node", "A-C_A", station_A, stop_ACA_arr, wait_times, 0, "A-C")
 
 stop_GHH = RouteStop("G-H_H_node", "G-H_H", station_H, None, travel_times, 0, "G-H")
 stop_GHB = RouteStop("G-H_B_node", "G-H_B", station_B, stop_GHH, travel_times, 0, "G-H")

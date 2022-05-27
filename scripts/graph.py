@@ -59,24 +59,23 @@ class Stop(Node):
 
 
 class RouteStop(Stop):
-    def __init__(self, node_id, stop_name: str, station: Station, idx_on_route, route_name: str, transport_type: str):
+    def __init__(self, node_id, stop_name: str, station: Station, idx_on_route, route_name: str, transport_type: str, travel_time: int):
         super().__init__(node_id, stop_name, station)
         self.idx_on_route: int = idx_on_route
         self.route_name: str = route_name
         self.transport_type = transport_type
+        self.travel_time: int = travel_time
 
 
 class RouteStopArr(RouteStop):
     def __init__(self, node_id, stop_name, station, prev_stop, idx_on_route, route_name, travel_time, rw_prev_stop):
-        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name)
-        self.travel_time: int = travel_time
+        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name, travel_time)
         self.rw_prev_stop: RouteStopDep = rw_prev_stop
 
 
 class RouteStopDep(RouteStop):
     def __init__(self, node_id, stop_name, station, prev_stop, idx_on_route, route_name, wait_time, rw_prev_stop):
-        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name)
-        self.wait_time: int = wait_time
+        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name, wait_time)
         self.rw_prev_stop: RouteStopArr = rw_prev_stop
 
 
