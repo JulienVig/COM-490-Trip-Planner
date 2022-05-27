@@ -13,3 +13,5 @@ data/departuresRouteStops.csv/_SUCCESS filter=lfs diff=lfs merge=lfs -text
 data/terminusRouteStops.csv/part-00000-0a06f1ea-39c3-41a6-916f-1336a2a68a97-c000.csv filter=lfs diff=lfs merge=lfs -text
 data/terminusRouteStops.csv/_SUCCESS filter=lfs diff=lfs merge=lfs -text
 data/departuresRouteStops.csv/part-00000-04ba97c6-496a-42e2-9940-9c9f979690cc-c000.csv filter=lfs diff=lfs merge=lfs -text
+data/delay_distrib.csv/part-00000-bea78a04-8f62-4390-a568-30592c24a5ec-c000.csv filter=lfs diff=lfs merge=lfs -text
+data/delay_distrib.csv/_SUCCESS filter=lfs diff=lfs merge=lfs -text
