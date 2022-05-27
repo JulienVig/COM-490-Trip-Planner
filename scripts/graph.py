@@ -162,8 +162,9 @@ class Timetable:
         stop_distrib = self.table[stop][1][idx]
         success_proba = stop_distrib.success_proba(wait_time)
         new_acc_success = acc_success * success_proba
+        est_transfers_left = max(1.0, self.INV_AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
-        is_safe = new_acc_success > threshold and success_proba > pow(threshold, self.INV_AVG_NB_OF_TRANSFER)
+        is_safe = new_acc_success > threshold and success_proba > pow(threshold, est_transfers_left)
         return new_acc_success, is_safe
 
     def get_stop_arrival_time(self, stop: RouteStopDep, idx: int) -> int:
