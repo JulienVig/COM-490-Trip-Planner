@@ -1,6 +1,6 @@
 from typing import List, Dict, Set, Tuple
 from bisect import bisect_right
-from datetime import datetime
+from datetime import datetime, timedelta
 from scipy.stats import expon
 
 
@@ -26,22 +26,29 @@ class Node:
 
 
 class Station(Node):
-    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops=None):
+    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=[], stops_arr=[]):
         super().__init__(node_id)
         self.station_name = station_name
-        self.stops: List[Stop] = stops
+        self.stops_dep: List[Stop] = stops_dep
+        self.stops_arr: List[Stop] = stops_arr
         self.latitude = latitude
         self.longitude = longitude
 
-    def set_stops(self, stops: List['Stop']) -> None:
-        self.stops = stops
+    def set_stops_dep(self, stops: List['Stop']) -> None:
+        self.stops_dep = stops
 
-    def add_stop(self, stop: 'Stop') -> None:
-        self.stops.append(stop)
+    def set_stops_arr(self, stops: List['Stop']) -> None:
+        self.stops_arr = stops
+
+    def add_stop_dep(self, stop: 'Stop') -> None:
+        self.stops_dep.append(stop)
+
+    def add_stop_arr(self, stop: 'Stop') -> None:
+        self.stops_arr.append(stop)
 
     def get_earliest_stop(self) -> 'Stop':
-        earliest = self.stops[0]
-        for stop in self.stops:
+        earliest = self.stops_dep[0]
+        for stop in self.stops_dep:
             if stop.arr_time < earliest.arr_time:
                 earliest = stop
         return earliest
@@ -59,24 +66,23 @@ class Stop(Node):
 
 
 class RouteStop(Stop):
-    def __init__(self, node_id, stop_name: str, station: Station, idx_on_route, route_name: str, transport_type: str):
+    def __init__(self, node_id, stop_name: str, station: Station, idx_on_route, route_name: str, transport_type: str, travel_time: int):
         super().__init__(node_id, stop_name, station)
         self.idx_on_route: int = idx_on_route
         self.route_name: str = route_name
-        self.transport_type = transport_type
+        self.transport_type: str = transport_type
+        self.travel_time: int = travel_time
 
 
 class RouteStopArr(RouteStop):
-    def __init__(self, node_id, stop_name, station, prev_stop, idx_on_route, route_name, travel_time, rw_prev_stop):
-        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name)
-        self.travel_time: int = travel_time
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time, rw_prev_stop):
+        super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time)
         self.rw_prev_stop: RouteStopDep = rw_prev_stop
 
 
 class RouteStopDep(RouteStop):
-    def __init__(self, node_id, stop_name, station, prev_stop, idx_on_route, route_name, wait_time, rw_prev_stop):
-        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name)
-        self.wait_time: int = wait_time
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time, rw_prev_stop):
+        super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time)
         self.rw_prev_stop: RouteStopArr = rw_prev_stop
 
 
@@ -159,6 +165,7 @@ class Timetable:
             success_proba ^ avg_nb_transfer > threshold  =>  success_proba > pow(threshold, self.INV_AVG_NB_OF_TRANSFER)
         :return: (new_acc_success, is_safe)
         """
+        wait_time = max(10, wait_time)
         stop_distrib = self.table[stop][1][idx]
         success_proba = stop_distrib.success_proba(wait_time)
         new_acc_success = acc_success * success_proba
@@ -182,7 +189,7 @@ class Path:
         self.string_representation = string_representation
 
     @staticmethod
-    def make(station: Station, stop: Stop, target_arr_time: int) -> 'Path':
+    def make(station: Station, stop: Stop, target_arr_time: int, transfer_time) -> 'Path':
         """Create a path from station and the given stop coming in"""
         route_names = set()
         node_sequence: List[Node] = [station, stop]
@@ -193,35 +200,37 @@ class Path:
             node_sequence.append(node)
             node = node.previous_node
 
-        walking_time, nb_transfers, str_representation = Path._process_sequence(node_sequence, target_arr_time)
+        walking_time, nb_transfers, str_representation = Path._process_sequence(node_sequence, target_arr_time, transfer_time)
         departure_time = target_arr_time - node_sequence[0].arr_time
         return Path(node_sequence, route_names, departure_time, walking_time, nb_transfers, str_representation)
 
     @staticmethod
-    def _process_sequence(node_sequence, target_arr_time):
+    def _process_sequence(node_sequence, target_arr_time, transfer_time):
+        transfer_time_ts = timedelta(seconds=transfer_time)
         departure = node_sequence[0]
         strings = [f"Starting journey at {departure} at time "
-                   f"{Path._convert_time_to_rw(departure.arr_time, target_arr_time)}\n"]
+                   f"{Path._convert_time_to_rw(departure.arr_time - transfer_time, target_arr_time)}\n"]
 
         nb_transfers = walking_time = 0
         current_route_start_time = 0
         current_trip_type = None  # either "transport" or "walk"
         prev_node = departure
         for n in node_sequence[1:]:
-            if type(n) == Station:
-                nb_transfers += 1
+            if (not type(n) == type(prev_node)) and not (isinstance(n, RouteStop) and isinstance(prev_node, RouteStop)):
 
                 rw_prev_arr_time = Path._convert_time_to_rw(prev_node.arr_time, target_arr_time)
                 rw_arr_time = Path._convert_time_to_rw(n.arr_time, target_arr_time)
                 if isinstance(n, Station):  # End of a trip
                     assert current_trip_type is not None
-                    duration = rw_prev_arr_time - current_route_start_time
+                    nb_transfers += 1
+                    duration = (rw_prev_arr_time - current_route_start_time).total_seconds()
                     if current_trip_type == "transport":
                         strings.append(f"\tTo {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
                     elif current_trip_type == "walk":
-                        strings.append(f"to {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
+                        strings.append(f" to {n.station_name} at {Path._dt_to_str(rw_prev_arr_time)}\n")
                         walking_time += duration
                     strings.append(f"\tDuration: {duration} seconds\n")
+                    strings.append(f"Change during 2 minutes then wait {rw_arr_time - rw_prev_arr_time}\n")
 
                 if isinstance(n, RouteStop):  # Start of a new route
                     strings.append(f"Take line {n.route_name}:\n")
@@ -255,8 +264,8 @@ class Path:
 
 class Distrib:
     def __init__(self, inv_lambda: float):
-        dist = expon()
-        self.success_proba = lambda x: dist.cdf(x, scale=inv_lambda)
+        dist = expon(scale=inv_lambda)
+        self.success_proba = lambda x: dist.cdf(x)
 
 
 class Solutions:
