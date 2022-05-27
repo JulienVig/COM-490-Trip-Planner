@@ -1,4 +1,4 @@
-from graph import Station, Timetable, Path, Marks, Solutions, RouteStop, WalkingStop
+from graph import Station, Timetable, Path, Marks, Solutions, RouteStop, RouteStopArr, RouteStopDep, WalkingStop
 from typing import List
 
 
@@ -50,15 +50,15 @@ class Denver:
         # The stop associated with each route is the first stop with a new arr_time on this route
         for route_name, stop in marks.route_marks.items():
             update_prev = True
-            while update_prev and stop.prev_stop is not None:
+            while update_prev and stop.rw_prev_stop is not None:
                 new_arr_time = stop.arr_time + stop.travel_time
                 # Local & target pruning
-                if new_arr_time < solutions.best_target_arr_time and new_arr_time < stop.prev_stop.arr_time:
+                if new_arr_time < solutions.best_target_arr_time and new_arr_time < stop.rw_prev_stop.arr_time:
                     # Update the next stop
-                    stop.prev_stop.update_arrival(new_arr_time, stop, stop.acc_success, stop.n_changes)
+                    stop.rw_prev_stop.update_arrival(new_arr_time, stop, stop.acc_success, stop.n_changes)
                     # Mark next stop's station. Will be done twice but not a problem wrt correctness
-                    marks.mark_station(stop.prev_stop.station)
-                    stop = stop.prev_stop
+                    marks.mark_station(stop.rw_prev_stop.station)
+                    stop = stop.rw_prev_stop
                 else:
                     update_prev = False
         marks.flush_routes()  # Unmark all routes
@@ -77,7 +77,9 @@ class Denver:
 
     def update_stations(self, marks: Marks, solutions: Solutions, timetable: Timetable) -> None:
         for station in marks.station_marks:
-            earliest_stop = station.get_earliest_stop()  # Get the stop with has the earliest arrival time
+            if not station.stops:
+                continue
+            earliest_stop = station.get_earliest_stop()  # Get the stop with the earliest arrival time
             new_arr_time = earliest_stop.arr_time + self.TRANSFER_TIME
 
             # We update the station and station's stops if:
@@ -106,7 +108,7 @@ class Denver:
                         while not safe and station.arr_time + wait_time < stop.arr_time and idx >= 0:
                             rw_previous_arrival_time = timetable.get_stop_arrival_time(stop, idx)
                             wait_time = rw_station_arr_time - rw_previous_arrival_time
-                            new_acc_success, safe = timetable.assert_safe_transfer(stop, idx, wait_time)
+                            new_acc_success, safe = timetable.assert_safe_transfer(stop, idx, wait_time, self.threshold, stop.acc_success)
                             idx -= 1
 
                         if safe and station.arr_time + wait_time < stop.arr_time:

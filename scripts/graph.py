@@ -26,7 +26,7 @@ class Node:
 
 
 class Station(Node):
-    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops=None):
+    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops=[]):
         super().__init__(node_id)
         self.station_name = station_name
         self.stops: List[Stop] = stops
@@ -63,19 +63,19 @@ class RouteStop(Stop):
         super().__init__(node_id, stop_name, station)
         self.idx_on_route: int = idx_on_route
         self.route_name: str = route_name
-        self.transport_type = transport_type
+        self.transport_type: str = transport_type
         self.travel_time: int = travel_time
 
 
 class RouteStopArr(RouteStop):
-    def __init__(self, node_id, stop_name, station, prev_stop, idx_on_route, route_name, travel_time, rw_prev_stop):
-        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name, travel_time)
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time, rw_prev_stop):
+        super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time)
         self.rw_prev_stop: RouteStopDep = rw_prev_stop
 
 
 class RouteStopDep(RouteStop):
-    def __init__(self, node_id, stop_name, station, prev_stop, idx_on_route, route_name, wait_time, rw_prev_stop):
-        super().__init__(node_id, stop_name, station, prev_stop, idx_on_route, route_name, wait_time)
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time, rw_prev_stop):
+        super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time)
         self.rw_prev_stop: RouteStopArr = rw_prev_stop
 
 
@@ -164,6 +164,7 @@ class Timetable:
         est_transfers_left = max(1.0, self.INV_AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
         is_safe = new_acc_success > threshold and success_proba > pow(threshold, est_transfers_left)
+        print(success_proba, wait_time, is_safe)
         return new_acc_success, is_safe
 
     def get_stop_arrival_time(self, stop: RouteStopDep, idx: int) -> int:
@@ -254,8 +255,8 @@ class Path:
 
 class Distrib:
     def __init__(self, inv_lambda: float):
-        dist = expon()
-        self.success_proba = lambda x: dist.cdf(x, scale=inv_lambda)
+        dist = expon(scale=inv_lambda)
+        self.success_proba = lambda x: dist.cdf(x)
 
 
 class Solutions:
