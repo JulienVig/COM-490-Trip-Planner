@@ -26,22 +26,29 @@ class Node:
 
 
 class Station(Node):
-    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops=[]):
+    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=[], stops_arr=[]):
         super().__init__(node_id)
         self.station_name = station_name
-        self.stops: List[Stop] = stops
+        self.stops_dep: List[Stop] = stops_dep
+        self.stops_arr: List[Stop] = stops_arr
         self.latitude = latitude
         self.longitude = longitude
 
-    def set_stops(self, stops: List['Stop']) -> None:
-        self.stops = stops
+    def set_stops_dep(self, stops: List['Stop']) -> None:
+        self.stops_dep = stops
 
-    def add_stop(self, stop: 'Stop') -> None:
-        self.stops.append(stop)
+    def set_stops_arr(self, stops: List['Stop']) -> None:
+        self.stops_arr = stops
+
+    def add_stop_dep(self, stop: 'Stop') -> None:
+        self.stops_dep.append(stop)
+
+    def add_stop_arr(self, stop: 'Stop') -> None:
+        self.stops_arr.append(stop)
 
     def get_earliest_stop(self) -> 'Stop':
-        earliest = self.stops[0]
-        for stop in self.stops:
+        earliest = self.stops_dep[0]
+        for stop in self.stops_dep:
             if stop.arr_time < earliest.arr_time:
                 earliest = stop
         return earliest
@@ -158,13 +165,13 @@ class Timetable:
             success_proba ^ avg_nb_transfer > threshold  =>  success_proba > pow(threshold, self.INV_AVG_NB_OF_TRANSFER)
         :return: (new_acc_success, is_safe)
         """
+        wait_time = max(10, wait_time)
         stop_distrib = self.table[stop][1][idx]
         success_proba = stop_distrib.success_proba(wait_time)
         new_acc_success = acc_success * success_proba
         est_transfers_left = max(1.0, self.INV_AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
         is_safe = new_acc_success > threshold and success_proba > pow(threshold, est_transfers_left)
-        print(success_proba, wait_time, is_safe)
         return new_acc_success, is_safe
 
     def get_stop_arrival_time(self, stop: RouteStopDep, idx: int) -> int:

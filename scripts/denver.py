@@ -22,8 +22,13 @@ class Denver:
         self.init_first_station(self.g_start, marks, self.timetable)
         while not marks.empty():
             self.update_lines(marks, solutions)
+            print(f"Marked stations after lines : {len(marks.station_marks)}")
             self.update_walks(marks)
+            print(f"Marked stations after walk : {len(marks.station_marks)}")
             self.update_stations(marks, solutions, self.timetable)
+            print(f"Marked routes after update stations : {len(marks.route_marks.items())}")
+            for a, b in marks.route_marks.items():
+                print(a, b.stop_name, b.arr_time)
 
         solutions.sort_solutions()
         n_sols_found += solutions.n_solutions()
@@ -36,7 +41,7 @@ class Denver:
 
     def init_first_station(self, g_start: Station, marks: Marks, timetable: Timetable) -> None:
         g_start.update_arrival(self.FIRST_STATION_TS, None, 1, 0)
-        for stop in g_start.stops:
+        for stop in g_start.stops_arr:
             if isinstance(stop, RouteStop):
                 dep_time, _ = timetable.previous_arrival(stop, self.FIRST_STATION_TS)
                 stop.update_arrival(dep_time, g_start, 1, 0)
@@ -77,9 +82,10 @@ class Denver:
 
     def update_stations(self, marks: Marks, solutions: Solutions, timetable: Timetable) -> None:
         for station in marks.station_marks:
-            if not station.stops:
+            if not station.stops_dep:
                 continue
             earliest_stop = station.get_earliest_stop()  # Get the stop with the earliest arrival time
+            print(f"earliest stop of station {station.station_name} is {earliest_stop.stop_name}")
             new_arr_time = earliest_stop.arr_time + self.TRANSFER_TIME
 
             # We update the station and station's stops if:
@@ -93,7 +99,7 @@ class Denver:
                 station.update_arrival(new_arr_time, earliest_stop, earliest_stop.acc_success, earliest_stop.n_changes)
                 # For each of the station's stops, see if the new earliest trip improves its arr_time
                 rw_station_arr_time = timetable.target_arr_time - station.arr_time
-                for stop in station.stops:
+                for stop in station.stops_arr:
                     if isinstance(stop, RouteStopArr):
                         # Note : All calls to timetable functions must take real-world arguments. Stored returned values
                         # are named relative to the graph and not the real world.
