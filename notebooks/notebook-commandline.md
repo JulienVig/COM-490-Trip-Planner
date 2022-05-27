@@ -131,5 +131,17 @@ hdfs dfs -ls /group/abiskop1/project_data/delay_distrib_final.csv
 ```
 
 ```bash
+hdfs dfs -ls /group/abiskop1/project_data/
+```
+
+```bash
+hdfs dfs -get /group/abiskop1/project_data/delay_distrib_final.csv ../data/delay_distrib.csv
+```
+
+```bash
+hdfs dfs -get /group/abiskop1/project_data/route_names.csv ../data/route_names.csv
+```
+
+```bash
 
 ```
