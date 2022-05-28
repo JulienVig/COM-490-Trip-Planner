@@ -15,3 +15,16 @@ data/terminusRouteStops.csv/_SUCCESS filter=lfs diff=lfs merge=lfs -text
 data/departuresRouteStops.csv/part-00000-04ba97c6-496a-42e2-9940-9c9f979690cc-c000.csv filter=lfs diff=lfs merge=lfs -text
 data/delay_distrib.csv/part-00000-bea78a04-8f62-4390-a568-30592c24a5ec-c000.csv filter=lfs diff=lfs merge=lfs -text
 data/delay_distrib.csv/_SUCCESS filter=lfs diff=lfs merge=lfs -text
+data/delay_distrib.csv filter=lfs diff=lfs merge=lfs -text
+data/departuresRouteStops filter=lfs diff=lfs merge=lfs -text
+data/route_names.csv filter=lfs diff=lfs merge=lfs -text
+data/terminusRouteStops filter=lfs diff=lfs merge=lfs -text
+data/arrivals_ext.csv filter=lfs diff=lfs merge=lfs -text
+data/arrivalsRouteStops.csv filter=lfs diff=lfs merge=lfs -text
+data/departuresRouteStops.csv filter=lfs diff=lfs merge=lfs -text
+data/route_names_types.csv filter=lfs diff=lfs merge=lfs -text
+data/terminusRouteStops.csv filter=lfs diff=lfs merge=lfs -text
+data/timetable filter=lfs diff=lfs merge=lfs -text
+data/arrivalsRouteStops filter=lfs diff=lfs merge=lfs -text
+data/delay_distrib filter=lfs diff=lfs merge=lfs -text
+data/departures.csv filter=lfs diff=lfs merge=lfs -text
