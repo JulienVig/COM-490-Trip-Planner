@@ -19,7 +19,7 @@ class Node:
         self.n_changes = new_n_changes
 
     def __eq__(self, other: 'Node'):
-        return self.node_id == other.node_id
+        return self.node_id == other.node_id 
 
     def __hash__(self):
         return hash(self.node_id)
@@ -61,6 +61,9 @@ class Station(Node):
 
     def __str__(self):
         return self.station_name
+    
+    def __eq__(self, other: 'Station'):
+        return self.station_name == self.station_name
 
 
 # abstract
@@ -103,6 +106,9 @@ class WalkingStop(Stop):
 
     def set_neighbors(self, neighbors: List[Tuple['WalkingStop', int]]) -> None:
         self.neighbors = neighbors
+        
+    def add_neighbor(self, neighbor: Tuple['WalkingStop', int])->None:
+        self.neighbors.append(neighbor)
 
 
 class Marks:

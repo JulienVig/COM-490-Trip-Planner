@@ -23,7 +23,7 @@ username = os.environ['RENKU_USERNAME']
 server = "http://iccluster029.iccluster.epfl.ch:8998"
 from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
-                             cell="""{{ "name":"{0}-final_project", "executorMemory":"1G", "executorCores":4, "numExecutors":10 }}""".format(username))
+                             cell="""{{ "name":"{0}-final_project", "executorMemory":"4G", "executorCores":4, "numExecutors":10 }}""".format(username))
 
 get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
@@ -141,7 +141,7 @@ def plot_delay_dist(sample_dist):
 # @udf
 # def test_udf(l):
 #     counts = np.array(l[1])
-#     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts / float(l[2]), p0=[0])
+#     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts /counts.sum(), p0=[0])
 #     return float(popt[0])
 
 # + tags=[] language="spark"
@@ -229,29 +229,43 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 # ### Get mean delay table
 
 # + language="spark"
-# save_real_time = real_time
-
-# + language="spark"
 # real_time = real_time.select(["STOP_NAME", "produkt_id", "arrival_delay", "day_of_week", "hour"]).dropna()
 # real_time = real_time.withColumn("arrival_delay", when(real_time["arrival_delay"] < 0, 0).when(col("arrival_delay").isNull(), 0)\
-#                                  .otherwise(col("arrival_delay")/60))
+#                                  .otherwise(col("arrival_delay")/60)).cache()
 # ## creating the table
 # finalCols = ["STOP_NAME", "produkt_id", "day_of_week", "hour"]
 #
 
 # + language="spark"
-# monday = real_time.filter(real_time.day_of_week == 1).filter(real_time.hour == 12)
+# day = real_time.filter(real_time.day_of_week == 3).filter(real_time.hour == 6)
+# day = day.groupBy(finalCols + ['arrival_delay']).count().cache()
+#
+#
 
 # + language="spark"
-# monday = monday.groupBy(finalCols + ['arrival_delay']).count()
+# day.show()
 
 # + language="spark"
-# lambdas = monday.groupBy(finalCols)\
-#                 .agg(struct(collect_list("arrival_delay"), collect_list("count"), sum("count")).alias("delays")).cache()
-#                 #.withColumn("lambda", test_udf(col("delays"))).drop('delays')
+# lambdas = day.groupBy(finalCols)\
+#                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
+#                 .withColumn("lambda", test_udf(col("delays"))).drop('delays').cache()
 
 # + language="spark"
 # lambdas.show()
+#
+
+# + language="spark"
+# hour1 = lambdas
+
+# + magic_args="-o hour1" language="spark"
+# hour1
+# -
+
+hour1
+
+# + language="spark"
+# lambdas = None
+# hour1.show()
 
 # + language="spark"
 # lambdas.filter(delays_distrib.STOP_NAME ==  "Zürich, Hardplatz").show()
