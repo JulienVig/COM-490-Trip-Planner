@@ -28,3 +28,5 @@ data/timetable filter=lfs diff=lfs merge=lfs -text
 data/arrivalsRouteStops filter=lfs diff=lfs merge=lfs -text
 data/delay_distrib filter=lfs diff=lfs merge=lfs -text
 data/departures.csv filter=lfs diff=lfs merge=lfs -text
+data/terminus_ext.csv filter=lfs diff=lfs merge=lfs -text
+data/timetableF.csv filter=lfs diff=lfs merge=lfs -text
