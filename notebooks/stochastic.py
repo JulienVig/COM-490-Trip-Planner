@@ -16,7 +16,6 @@
 #
 # ### Creating Spark Session
 
-# +
 import os
 # %load_ext sparkmagic.magics
 from datetime import datetime
@@ -25,9 +24,6 @@ server = "http://iccluster029.iccluster.epfl.ch:8998"
 from IPython import get_ipython
 get_ipython().run_cell_magic('spark', line="config", 
                              cell="""{{ "name":"{0}-final_project", "executorMemory":"1G", "executorCores":4, "numExecutors":10 }}""".format(username))
-
-
-# -
 
 get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
@@ -244,15 +240,15 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 #
 
 # + language="spark"
-# monday = real_time.filter(real_time.day_of_week == 1)
+# monday = real_time.filter(real_time.day_of_week == 1).filter(real_time.hour == 12)
 
 # + language="spark"
 # monday = monday.groupBy(finalCols + ['arrival_delay']).count()
 
 # + language="spark"
 # lambdas = monday.groupBy(finalCols)\
-#                 .agg(struct(collect_list("arrival_delay"), collect_list("count"), sum("count")).alias("delays"))\
-#                 .withColumn("lambda", test_udf(col("delays"))).drop('delays').cache()
+#                 .agg(struct(collect_list("arrival_delay"), collect_list("count"), sum("count")).alias("delays")).cache()
+#                 #.withColumn("lambda", test_udf(col("delays"))).drop('delays')
 
 # + language="spark"
 # lambdas.show()
