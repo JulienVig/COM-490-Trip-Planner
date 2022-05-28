@@ -102,13 +102,6 @@ get_ipython().run_line_magic(
 # stopt.select(["arrival_time_complete", "departure_time_complete"]).show()
 
 # + language="spark"
-# stopt.where(col("arrival_time_complete_unix").isNull()).show()
-
-# + language="spark"
-# stopt = stopt.dropna()
-# stopt.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in stopt.columns]).show()
-
-# + language="spark"
 # stopt = stopt.dropna()
 # finalCols = ["trip_id", "arrival_time_complete", "departure_time_complete", "arrival_time_complete_unix", "departure_time_complete_unix", "stop_id", "stop_sequence"]
 # stopt = stopt.select(finalCols)
