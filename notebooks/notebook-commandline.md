@@ -151,5 +151,9 @@ hdfs dfs -get /group/abiskop1/project_data/route_names_types.csv ../data/route_n
 ```
 
 ```bash
+hdfs dfs -get /group/abiskop1/project_data/timetableFixed.csv/part-00000-438de4fe-4ac2-4fc6-9fe0-1521ebf86d11-c000.csv ../data/timetableF.csv
+```
+
+```bash
 
 ```
