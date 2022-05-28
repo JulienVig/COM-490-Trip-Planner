@@ -171,6 +171,20 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 # stopw_dist_500m
 # -
 
+print(len(stopw_dist_500m),"No duplicate : ",len(stopw_dist_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])))
+# Droping duplicates
+stopw_dist_500m = stopw_dist_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])
+stopw_dist_500m.head()
+
+# +
+# 50m/ minute walking speed, computing m.s-1
+walk_speed = 50 / 60
+
+stopw_dist_500m["walk_time"] = stopw_dist_500m["walk_distance"]*walk_speed*1000
+# -
+
+stopw_dist_500m[["STOP_NAME", "STOP_NAME_2", "walk_distance", "walk_time"]].to_csv("../data/walking_stops_pairs.csv")
+
 stopw_500m = stopw_dist_500m
 (stopw_500m["STOP_NAME"]!=stopw_500m["STOP_NAME_2"]).sum()
 
