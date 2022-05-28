@@ -23,6 +23,12 @@ class Node:
 
     def __hash__(self):
         return hash(self.node_id)
+    
+    def cleanup(self):
+        self.arr_time: int = 2551596325
+        self.previous_node: Node = None 
+        self.acc_success: float = 1
+        self.n_changes = 0 
 
 
 class Station(Node):
@@ -75,16 +81,20 @@ class RouteStop(Stop):
 
 
 class RouteStopArr(RouteStop):
-    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time, rw_prev_stop):
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time, rw_prev_stop=None):
         super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time)
         self.rw_prev_stop: RouteStopDep = rw_prev_stop
-
+    
+    def set_prev_stop(self, rw_prev_stop):
+        self.rw_prev_stop: RouteStopDep = rw_prev_stop
 
 class RouteStopDep(RouteStop):
-    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time, rw_prev_stop):
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time, rw_prev_stop=None):
         super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time)
         self.rw_prev_stop: RouteStopArr = rw_prev_stop
 
+    def set_prev_stop(self, rw_prev_stop):
+        self.rw_prev_stop: RouteStopDep = rw_prev_stop
 
 class WalkingStop(Stop):
     def __init__(self, node_id, stop_name, station, neighbors=None):
