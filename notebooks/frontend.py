@@ -167,9 +167,7 @@ CSS_WIDGET = """
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
     
-def visualize_path(solution: RealSolution, geostops, html_widget):
-    geostops_id=geostops.set_index("id")
-    
+def visualize_path(solution: RealSolution, html_widget):    
     #dict to map transport type to color and to accumulator
     color_cycle=["#0e51ed","#ed0000","#030591","#4fdb4b","#028a00"]
 
@@ -392,8 +390,6 @@ html_output = widgets.HTML(
     value="Fill the fields and click on <b>Run</b> to plan your trip !"
 )
 
-geostops = pd.read_csv("geostops.csv")
-
 def run_button(b):
     #reset display
     output.clear_output()
@@ -421,7 +417,7 @@ def run_button(b):
         
         for i,solution in enumerate(solutions[:1]):
             print('\n\nDisplaying solution #', i+1)
-            visualize_path(solution, geostops, html_output)
+            visualize_path(solution, html_output)
         
 
 #initalize button
