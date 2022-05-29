@@ -227,59 +227,90 @@ stationsDB.to_csv("../data/stations_ext.csv")
 # stopTrips.cache()
 
 # + language="spark"
-# arrivals = stopTrips.filter(stopTrips.end == "A").drop("departure_time_complete_unix").withColumnRenamed("arrival_time_complete_unix", "reached_time")
-# departures = stopTrips.filter(stopTrips.end == "D").drop("arrival_time_complete_unix").withColumnRenamed("departure_time_complete_unix", "reached_time")
+# arrivals.count(), departures.count()
 
 # + language="spark"
+# arrivals = stopTrips.filter(stopTrips.end == "A").drop("departure_time_complete_unix").withColumnRenamed("arrival_time_complete_unix", "reached_time")
+# departures = stopTrips.filter(stopTrips.end == "D").drop("arrival_time_complete_unix").withColumnRenamed("departure_time_complete_unix", "reached_time")
 # ## points to the matching end
 # arrivals = arrivals.withColumn("matching_arrival", col("stop_sequence") - 1)
-# targets = departures.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "reached_time", "trip_id"])
-# targets = targets.withColumnRenamed("end_route_stop_id", "target_end_route_stop_id")
-# targets = targets.withColumnRenamed("stop_sequence", "target_sequence")
-# targets = targets.withColumnRenamed("route_stop_id", "target_route_stop_id")
-# targets = targets.withColumnRenamed("reached_time", "reached_time_target")
-# targets = targets.withColumnRenamed("trip_id", "target_trip_id")
-#
-#
-# terminus = arrivals.filter("matching_arrival == 0")\
-#             .select(["STOP_NAME", "stop_sequence", "end_route_stop_id", "route_stop_id"])\
-#             .dropDuplicates()\
-#             .cache()
+# terminus = arrivals.filter("matching_arrival == 0").cache()
+#             #.select(["STOP_NAME", "stop_sequence", "end_route_stop_id", "route_stop_id"])\
+#             #.dropDuplicates()
 #
 # arrivals = arrivals.filter("matching_arrival != 0")
+# #departures = departures.filter(departures.stop_sequence != 1)
+#
+# targets = departures.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "reached_time", "trip_id"])\
+#                     .withColumnRenamed("end_route_stop_id", "target_end_route_stop_id")\
+#                     .withColumnRenamed("stop_sequence", "target_sequence")\
+#                     .withColumnRenamed("route_stop_id", "target_route_stop_id")\
+#                     .withColumnRenamed("reached_time", "reached_time_target")\
+#                     .withColumnRenamed("trip_id", "target_trip_id")
+
+# + language="spark"
+# arrivals.count(),targets.count(), departures.count(), terminus.count()
+
+# + language="spark"
+# print(targets.select('target_sequence').dropDuplicates().count() - 1 == arrivals.select("matching_arrival").dropDuplicates().count())
+# print(targets.select('target_trip_id').dropDuplicates().count(),  arrivals.select('trip_id').dropDuplicates().count())
+
+# + language="spark"
 # print("Number of arrivals before : ", arrivals.count())
+# #print(count_nan_null(arrivals))
 # arrivals = arrivals.join(targets,  (targets.target_sequence == arrivals.matching_arrival)\
-#                                      & (targets.target_trip_id == arrivals.trip_id), "left")
-#
+#                                      & (targets.target_trip_id == arrivals.trip_id), "inner")
+# #print(count_nan_null(arrivals))
 # print("Number of arrivals after : ", arrivals.count())
-# arrivals = arrivals\
-#             .select(["STOP_NAME", "reached_time", "stop_sequence", "end_route_stop_id", "route_stop_id", "reached_time_target", "target_end_route_stop_id"])\
-#             .dropDuplicates()\
-#             .withColumn("travel_time", col("reached_time") - col("reached_time_target"))\
-#             .select(["STOP_NAME", "stop_sequence", "end_route_stop_id", "route_stop_id", "travel_time", "target_end_route_stop_id"])\
-#             .dropDuplicates()
+# arrivals = arrivals.withColumn("travel_time", col("reached_time") - col("reached_time_target"))
+# #            .select(["STOP_NAME", "reached_time", "stop_sequence", "end_route_stop_id", 
+# #                     "route_stop_id", "reached_time_target", "target_end_route_stop_id"])\
+# #.dropDuplicates()\
+# #            .withColumn("travel_time", col("reached_time") - col("reached_time_target"))\
+#             #.select(["STOP_NAME", "stop_sequence", "end_route_stop_id", "route_stop_id",
+#                      #"travel_time", "target_end_route_stop_id"])\
+#             #.dropDuplicates()
 #
-# cols = list(set(arrivals.schema.names) - {'travel_time'})
-# arrivals = arrivals.groupBy(cols).min()\
-#             .withColumnRenamed("min(travel_time)", "travel_time")\
-#             .dropDuplicates()
-#
-# cols = list(set(arrivals.schema.names) - {'target_end_route_stop_id'})
-# arrivals = arrivals.groupBy(cols).agg(F.first("target_end_route_stop_id"))\
-#             .withColumnRenamed("first(target_end_route_stop_id, false)", "target_end_route_stop_id")\
-#             .dropDuplicates()\
-#             .cache()
+# #cols = list(set(arrivals.schema.names) - {'travel_time'})
+# #arrivals = arrivals.groupBy(cols).min()\
+# #            .withColumnRenamed("min(travel_time)", "travel_time")\
+# #            .dropDuplicates()
+# #
+# #cols = list(set(arrivals.schema.names) - {'target_end_route_stop_id'})
+# #arrivals = arrivals.groupBy(cols).agg(F.first("target_end_route_stop_id"))\
+# #            .withColumnRenamed("first(target_end_route_stop_id, false)", "target_end_route_stop_id")\
+# #            .dropDuplicates()\
+# #            .cache()
 #
 #
 # arrivals.show(5)
-# -
 
-# Excuse me but wtf
+# + language="spark"
+# departures = targets.join(arrivals, (targets.target_sequence == arrivals.matching_arrival)\
+#                                      & (targets.target_trip_id == arrivals.trip_id), "inner")\
+#                     .withColumnRenamed("target_end_route_stop_id", "end_route_stop_id")\
+#                     .withColumnRenamed("target_sequence", "stop_sequence")\
+#                     .withColumnRenamed("reached_time_target", "reached_time")\
+#                     .withColumnRenamed("target_trip_id", "trip_id")\
+#                     .select(['end_route_stop_id', 'stop_sequence', 'reached_time']).dropDuplicates()
+
+# + language="spark"
+# test.select('end_route_stop_id').dropDuplicates().count()
+
+# + language="spark"
+# arrivals.select('end_route_stop_id').dropDuplicates().count()
+
+# + language="spark"
+# departures.select('end_route_stop_id').dropDuplicates().count()
+
+# + language="spark"
+# count_nan_null(arrivals)
 
 # + language="spark"
 # #print("All arrival numbers : ", allArrivalNumbers)
 # print("Number of starts : ", terminus.count())
 # print("Number of arrival : ", arrivals.count())
+# print("Number of departure : ", departures.count())
 # print(arrivals.count() + terminus.count())
 
 # + magic_args="-o stop_seq_distrib" language="spark"
@@ -326,8 +357,18 @@ plt.figure(figsize=(20, 6))
 sns.barplot(data=tt_distrib, x="travel_time", y="count")
 
 # + language="spark"
-# arrivals.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "arrivalsRouteStopsFinal.csv")
+# unique_arrivals = arrivals.dropDuplicates(['end_route_stop_id','target_end_route_stop_id'])
+# unique_arrivals.count()
+# -
+
+
+
+# + language="spark"
+# unique_arrivals.coalesce(1).write.format("com.databricks.spark.csv").mode('overwrite')\
+#    .option("header", "true").save(REMOTE_PATH + "arrival_ttn.csv")
+
+# + language="spark"
+# departures.count()
 
 # + language="spark"
 # terminus.coalesce(1).write.format("com.databricks.spark.csv")\
@@ -338,11 +379,13 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 
 # + language="spark"
 #
-#
+# departures = stopTrips.filter(stopTrips.end == "D").drop("arrival_time_complete_unix")\
+#                         .withColumnRenamed("departure_time_complete_unix", "reached_time")
 # departures = departures.join(waiting_times, "route_stop_id")\
 #           .withColumn("target_end_route_stop_id", concat(col("route_stop_id"), lit("$A")))\
 #           .withColumnRenamed("wait_weight", "travel_time")\
-#           .select(["route_stop_id", "stop_id", "route_id", "STOP_NAME", "end_route_stop_id", "travel_time", "target_end_route_stop_id"])\
+#           .select(["route_stop_id", "stop_id", "route_id", "STOP_NAME", "end_route_stop_id", 
+#                    "travel_time", "target_end_route_stop_id"])\
 #           .dropDuplicates()
 #
 #
@@ -359,14 +402,19 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 # departures = departures.drop("stop_id").dropDuplicates()
 
 # + language="spark"
-# print("Number of starts : ", terminus.count())
-# print("Number of arrival : ", arrivals.count())
-# print(arrivals.dropDuplicates().count() + terminus.count())
-# print(departures.count())
+# arrival_targets = unique_arrivals.select("target_end_route_stop_id")\
+#                             .withColumnRenamed("target_end_route_stop_id", "departure_id")
+# unique_departures = departures.join(arrival_targets, (arrival_targets.departure_id == departures.end_route_stop_id))
 
 # + language="spark"
-# departures.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "departuresFinal.csv")
+# #print("Number of starts : ", terminus.count())
+# #print("Number of arrival : ", unique_arrivals.count())
+# #print(arrivals.dropDuplicates().count() + terminus.count())
+# print(unique_departures.count())
+
+# + language="spark"
+# unique_departures.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save(REMOTE_PATH + "departures_ttn.csv")
 # -
 # ## Integrity test
 #

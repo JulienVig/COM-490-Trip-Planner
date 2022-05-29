@@ -28,7 +28,7 @@ DATA = '../data/'
 
 # +
 # %time
-station_df = pd.read_csv(join(DATA, 'stations.csv'), index_col=0)
+station_df = pd.read_csv(join(DATA, 'stations_ext.csv'), index_col=0)
 
 stations = {}
 for i, row in station_df.iterrows():
@@ -39,30 +39,22 @@ station_df.head(1)
 
 # # init routestops
 
-arrivals = pd.read_csv(join(DATA, 'arrivals_ext.csv'), index_col=0).fillna(30)
-terminus = pd.read_csv(join(DATA, 'terminus_ext.csv'), index_col=0)
-departure = pd.read_csv(join(DATA, 'departures.csv'), index_col=0)
+routes = pd.read_csv(join(DATA,'route_names_types.csv'), index_col=0)
+arrivals = pd.read_csv(join(DATA, 'arrivals_ttn.csv'), index_col=0).merge(routes, on='route_id')
+departure = pd.read_csv(join(DATA, 'departures_ttn.csv'), index_col=0).merge(routes, on='route_id')
 
-arrivals.head(2)
+arrivals.head(1)
 
-terminus.head(1)
+departure.head(1)
 
-len(terminus), len(departure), len(arrivals)
-
-# +
-
-departure.head(2).values
+len(departure), len(arrivals)
 
 # +
-routestops_arr, routestops_dep = {}, {}
-for i, row in terminus.iterrows():
-    routestops_arr[row['end_route_stop_id']] = RouteStopArr(row['end_route_stop_id'],row['STOP_NAME'],
-                                                            stations[row['STOP_NAME']], row['stop_sequence'], 
-                                                            row['route_name'], row['transport_type'], 0, None)
-    
+routestops_arr, routestops_dep = {}, {}                                      
+   
 for i, row in arrivals.iterrows():
     routestops_arr[row['end_route_stop_id']] = RouteStopArr(row['end_route_stop_id'],row['STOP_NAME'],
-                                                            stations[row['STOP_NAME']], row['stop_sequence'], 
+                                                            stations[row['STOP_NAME']], row['stop_sequence']*2, 
                                                             row['route_name'], row['transport_type'], 
                                                             row['travel_time'], None)
     
@@ -72,17 +64,23 @@ for i, row in departure.iterrows():
                                                             row['route_name'], row['transport_type'], 
                                                             row['travel_time'], None)
 
-
 for i, row in arrivals.iterrows():
-    routestops_arr[ row['end_route_stop_id']].set_prev_stop(routestops_dep[row['target_end_route_stop_id']])
-    
+    routestops_arr[row['end_route_stop_id']].set_prev_stop(routestops_dep[row['target_end_route_stop_id']])
+
+
+acc = 0
 for i, row in departure.iterrows():
     current_id = row['end_route_stop_id']
-    previous_id = current_id[:-2] + '$A'
-    routestops_dep[current_id].set_prev_stop(routestops_arr[previous_id])
+    stop_seq = int(current_id[-3])
+    if stop_seq != 1: # First route_stop_dep of the route doesn't have a prev stop
+        previous_id = current_id[:-1] + 'A'
+        if previous_id in routestops_arr:
+            routestops_dep[current_id].set_prev_stop(routestops_arr[previous_id])
+            routestops_dep[current_id].idx_on_route = stop_seq * 2 + 1
+        else:
+            acc+=1
+print("Departure stops without previous arrival:", acc)
 # -
-
-arrivals.end_route_stop_id.str.startswith("69-3-Y-j20-1$Reppisc").sum()
 
 # # init timetable
 
@@ -106,6 +104,10 @@ for i, row in hours.iterrows():
 len(timetable)
 # -
 
+# ## delay distributions
+
+pd.read_csv(join(DATA, 'lambdas_ext.csv'))
+
 # # init walking
 
 # +
@@ -126,6 +128,21 @@ for i, row in walking_df.iterrows():
         walk_id_1 = get_id(row['STOP_NAME'])
         walk_id_2 = get_id(row['STOP_NAME_2'])
         walking[walk_id_1].add_neighbor((walking[walk_id_2], row['walk_time']))
+# -
+
+
+
+# # Set station stops
+
+# +
+for stop in routestops_arr.values():
+    stop.station.add_stop_arr(stop)
+    
+for stop in routestops_dep.values():
+    stop.station.add_stop_dep(stop)
+    
+for stop in walking.values():
+    stop.station.add_stop_dep(stop)
 # -
 
 

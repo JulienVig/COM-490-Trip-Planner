@@ -102,7 +102,7 @@ get_ipython().run_line_magic(
 # @udf
 # def compute_lambda_udf(l):
 #     counts = np.array(l[1])
-#     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts /float(counts.sum()))
+#     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts / float(counts.sum()))
 #     return float(popt[0])
 
 # + language="spark"
@@ -129,6 +129,8 @@ from scipy.optimize import curve_fit
 def plot_delay_dist(sample_dist):
     fig = plt.figure(figsize=(20, 6))
     sample_dist = sample_dist.copy().sort_values("arrival_delay")
+    sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
+    sample_dist["arrival_delay"] = sample_dist["arrival_delay"] 
     station = sample_dist.STOP_NAME.iloc[0]
     transport_mean = sample_dist.produkt_id.iloc[0]
     
@@ -149,35 +151,6 @@ def plot_delay_dist(sample_dist):
 
 # + magic_args="-o sample_dist" language="spark"
 # sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Adliswil").filter(delays_distrib.produkt_id == "Zug")
-# -
-
-sample_dist
-
-sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
-sample_dist["arrival_delay"] = np.where(sample_dist["arrival_delay"] < 0, 0, sample_dist["arrival_delay"])
-sample_dist["arrival_delay"] = sample_dist["arrival_delay"] / 60
-#sample_dist = sample_dist.sort_values("arrival_delay")
-
-# + language="spark"
-# from pyspark.sql.functions import pandas_udf, PandasUDFType
-# import numpy as np
-# from scipy.optimize import curve_fit
-#
-# @udf
-# def test_udf(l):
-#     counts = np.array(l[1])
-#     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts /float(l[2]), p0=[0])
-#     return float(popt[0])
-
-# + tags=[] language="spark"
-# delays_distrib.withColumn("arrival_delay", col("arrival_delay") /60)\
-#                 .groupBy(['STOP_NAME','produkt_id'])\
-#                 .agg(struct(collect_list("arrival_delay"), collect_list("count"), sum("count")).alias("delays"))\
-#                 .withColumn("lambda", test_udf(col("delays"))).show()
-# -
-
-sample_dist['count'].sum()
-
 
 # +
 def pdf(x, a):
@@ -186,13 +159,23 @@ def pdf(x, a):
 def cdf(x, a):
         return 1 - np.exp(-a*x)
     
-popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), sample_dist.arrival_delay,  sample_dist['count'], p0=[0])
-print(popt)
-yy = pdf(sample_dist.arrival_delay.sort_values(), *popt)
-plt.plot(sample_dist.arrival_delay.sort_values(), yy, '-o')
-# -
+def fit_exp(sample_dist):
+    sample_dist = sample_dist.copy()
+    sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
+    sample_dist["arrival_delay"] = np.where(sample_dist["arrival_delay"] < 0, 0, sample_dist["arrival_delay"])
+    popt, pcov = curve_fit(pdf, sample_dist.arrival_delay,  sample_dist['count'])
+    print("lambda =", popt[0])
+    yy = pdf(sample_dist.arrival_delay.sort_values(), *popt)
+    plt.plot(sample_dist.arrival_delay.sort_values(), yy, '-o')
+    
+fit_exp(sample_dist)
 
-cdf(4, popt[0])
+# + tags=[] language="spark"
+# delays_distrib.withColumn("arrival_delay", col("arrival_delay") /60)\
+#                 .groupBy(['STOP_NAME','produkt_id'])\
+#                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
+#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).show()
+# -
 
 plot_delay_dist(sample_dist)
 
@@ -252,28 +235,23 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 # + language="spark"
 # real_time = real_time.select(["STOP_NAME", "produkt_id", "arrival_delay", "day_of_week", "hour"]).dropna()
 # real_time = real_time.withColumn("arrival_delay", when(real_time["arrival_delay"] < 0, 0).when(col("arrival_delay").isNull(), 0)\
-#                                  .otherwise(col("arrival_delay")/60))#.cache()
+#                                  .otherwise(col("arrival_delay")/60))
 # ## creating the table
 # finalCols = ["STOP_NAME", "produkt_id", "day_of_week", "hour"]
 #
 
 # + language="spark"
+# # Since we only have the timetable of Wednesday, we only model delays on Wednesday
+# # We also restrict the hours of the day from 5am to 10pm
 # day = real_time.filter(real_time.day_of_week == 3).filter((real_time.hour > 4) & (real_time.hour < 23))
 # day = day.groupBy(finalCols + ['arrival_delay']).count().cache()
 #
 #
 
 # + language="spark"
-# day.show()
-
-# + language="spark"
 # lambdas = day.groupBy(finalCols)\
 #                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
 #                 .withColumn("lambda", compute_lambda_udf(col("delays"))).drop('delays').cache()
-
-# + language="spark"
-# lambdas.show()
-#
 
 # + language="spark"
 # lambdas.coalesce(1).write.format("com.databricks.spark.csv")\

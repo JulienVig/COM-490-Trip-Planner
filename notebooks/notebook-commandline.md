@@ -147,7 +147,11 @@ hdfs dfs -ls /group/abiskop1/project_data
 ```
 
 ```bash
-hdfs dfs -get /group/abiskop1/project_data/route_names_types.csv ../data/route_names_types
+hdfs dfs -get /group/abiskop1/project_data/departures_ttn.csv ../data/departures_ttn.csv
+```
+
+```bash
+
 ```
 
 ```bash
