@@ -182,8 +182,11 @@ waiting_times.to_csv("../data/waiting_times.csv")
 allTimetableRouteArrival
 
 # + language="spark"
+# allTimetableRouteArrival = allTimetableRouteArrival.filter(allTimetableRouteArrival.end == "A")
+
+# + language="spark"
 # allTimetableRouteArrival.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "timetableFixed.csv")
+#    .option("header", "true").save(REMOTE_PATH + "timetableFinal.csv")
 # -
 
 # ## Construction of station
@@ -206,15 +209,11 @@ allTimetableRouteArrival
 # stationsDB.show()
 
 
-# + language="spark"
-# stationsDB.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "stations.csv")
-
-# + magic_args="-o stationsDB" language="spark"
+# + magic_args="-o stationsDB -n -1" language="spark"
 # stationsDB
 # -
 
-stationsDB.to_csv("../data/stations.csv")
+stationsDB.to_csv("../data/stations_ext.csv")
 
 # ## Builing Stops
 
@@ -364,19 +363,6 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 # print("Number of arrival : ", arrivals.count())
 # print(arrivals.dropDuplicates().count() + terminus.count())
 # print(departures.count())
-
-# + language="spark"
-# dummy.dropna().count()
-
-# + language="spark"
-# dummy = firsts.join(arrivals, "end_route_stop_id", "inner")
-# #dummy = dummy.filter(dummy.target_end_route_stop_id == dummy["first(target_end_route_stop_id, false)"])
-
-# + language="spark"
-# dummy.show(3)
-
-# + language="spark"
-# firsts = arrivals.select(["end_route_stop_id", "target_end_route_stop_id"]).filter(arrivals['target_end_route_stop_id'].isNotNull()).groupBy("end_route_stop_id").agg(F.first("target_end_route_stop_id"))
 
 # + language="spark"
 # departures.coalesce(1).write.format("com.databricks.spark.csv")\

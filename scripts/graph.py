@@ -154,12 +154,15 @@ class Marks:
 
 
 class Timetable:
-    def __init__(self, table, target_arr_time):
+    def __init__(self, table, target_arr_time=-1):
         # key is RouteStopDep.stop_name, value is (List[arrival_times], List[delay distributions])
         self.table: Dict[RouteStopArr, Tuple[List[int], List[Distrib]]] = table  # timestamps are ascending in rw
         self.target_arr_time: int = target_arr_time
         self.threshold = 0.0
-        self.INV_AVG_NB_OF_TRANSFER = 1 / 5
+        self.AVG_NB_OF_TRANSFER = 5
+        
+    def set_target_time(self, target_arr_time):
+        self.target_arr_time = target_arr_time
 
     def previous_arrival(self, stop: RouteStopArr, rw_station_arr_time: int) -> Tuple[int, int]:
         """
@@ -186,16 +189,16 @@ class Timetable:
         The current heuristics are:
         1. The new success probability should still be above the input threshold
         2. The transfer success probability should be good enough to complete a journey with an avg nb of transfer.
-            success_proba ^ avg_nb_transfer > threshold  =>  success_proba > pow(threshold, self.INV_AVG_NB_OF_TRANSFER)
+            success_proba ^ avg_nb_transfer > threshold  =>  success_proba > pow(threshold, 1 / avg_nb_transfer)
         :return: (new_acc_success, is_safe)
         """
         wait_time = max(10, wait_time)
         stop_distrib = self.table[stop][1][idx]
         success_proba = stop_distrib.success_proba(wait_time)
         new_acc_success = acc_success * success_proba
-        est_transfers_left = max(1.0, self.INV_AVG_NB_OF_TRANSFER - stop.n_changes)
+        est_transfers_left = max(1.0, self.AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
-        is_safe = new_acc_success > threshold and success_proba > pow(threshold, est_transfers_left)
+        is_safe = new_acc_success > threshold and success_proba > pow(threshold, 1 / est_transfers_left)
         return new_acc_success, is_safe
 
     def get_stop_arrival_time(self, stop: RouteStopArr, idx: int) -> int:
@@ -203,9 +206,11 @@ class Timetable:
 
 
 class Distrib:
-    def __init__(self, inv_lambda: float):
-        dist = expon(scale=inv_lambda)
-        self.success_proba = lambda x: dist.cdf(x/60)  # Distribution takes minutes as units
+    def __init__(self, lambda_: float):
+        # Lambda is the exponential cdf of the delay distribution
+        # Indeed p(successful connection) = p(delay < wait_time ) = cdf(wait_time)
+        self.success_proba = lambda wait_time: 1 - np.exp(- lambda_* wait_time / 60)  # Distribution takes minutes as units
+        
 
 
 class RealSolution:

@@ -13,8 +13,8 @@
 # ---
 
 import sys
-sys.path.append('../')
-from scripts.graph import Station, RouteStopArr, RouteStopDep, WalkingStop, Timetable
+sys.path.insert(1,'../scripts')
+from graph import Station, RouteStopArr, RouteStopDep, WalkingStop, Timetable
 
 from os.path import join
 import pandas as pd
@@ -35,7 +35,7 @@ for i, row in station_df.iterrows():
     stations[row['STOP_NAME']]= Station(row['STOP_NAME'], row['STOP_NAME'], row['STOP_LAT'], row['STOP_LON'])
 # -
 
-station_df.query("STOP_NAME.str.contains('HB')")
+station_df.head(1)
 
 # # init routestops
 
@@ -88,10 +88,6 @@ arrivals.end_route_stop_id.str.startswith("69-3-Y-j20-1$Reppisc").sum()
 
 TARGET = 1.589388e+09
 
-from datetime import datetime
-
-
-
 # +
 # Dict[RouteStopDep, Tuple[List[int], List[Distrib]]]
 
@@ -107,7 +103,7 @@ for i, row in hours.iterrows():
     timetable[row.name] = {'time': row[0]}
 
 # + tags=[]
-timetable
+len(timetable)
 # -
 
 # # init walking

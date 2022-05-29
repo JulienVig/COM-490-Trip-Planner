@@ -244,7 +244,7 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 # + language="spark"
 # real_time = real_time.filter("arrival_delay is not NULL")
 # real_time = real_time.withColumn("day_of_week", dayofweek(from_unixtime(col("arrival_time_schedule"))))
-# real_time = real_time.withColumn("hour", hour(from_unixtime(col("arrival_time_schedule")))).cache()
+# real_time = real_time.withColumn("hour", hour(from_unixtime(col("arrival_time_schedule"))))#.cache()
 # -
 
 # ### Get mean delay table
@@ -252,13 +252,13 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 # + language="spark"
 # real_time = real_time.select(["STOP_NAME", "produkt_id", "arrival_delay", "day_of_week", "hour"]).dropna()
 # real_time = real_time.withColumn("arrival_delay", when(real_time["arrival_delay"] < 0, 0).when(col("arrival_delay").isNull(), 0)\
-#                                  .otherwise(col("arrival_delay")/60)).cache()
+#                                  .otherwise(col("arrival_delay")/60))#.cache()
 # ## creating the table
 # finalCols = ["STOP_NAME", "produkt_id", "day_of_week", "hour"]
 #
 
 # + language="spark"
-# day = real_time.filter(real_time.day_of_week == 3).filter(real_time.hour == 6) #.filter((real_time.hour > 6) & (real_time.hour < 21))
+# day = real_time.filter(real_time.day_of_week == 3).filter((real_time.hour > 4) & (real_time.hour < 23))
 # day = day.groupBy(finalCols + ['arrival_delay']).count().cache()
 #
 #
@@ -277,10 +277,13 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 
 # + language="spark"
 # lambdas.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "lambdas.csv")
+#    .option("header", "true").save(REMOTE_PATH + "lambdas_ext.csv")
+
+# + language="spark"
+# spark.read.csv(REMOTE_PATH + "lambdas_ext.csv", header=True).show()
 # -
 
-
+# ## what was used before:
 
 # + language="spark"
 # real_time = real_time.groupBy(finalCols).mean()\
@@ -292,13 +295,13 @@ g.set_xticklabels(g.get_xticklabels(), rotation=45);
 
 # + language="spark"
 # real_time.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "delay_distrib_final.csv")
-
-# + language="spark"
-# spark.read.orc("/data/sbb/part_orc/routes").show()
+#    .option("header", "true").save(REMOTE_PATH + "delay_distrib_final2.csv")
 # -
 
 # ## Create Route Name table
+
+# + language="spark"
+# spark.read.orc("/data/sbb/part_orc/routes").show()
 
 # + language="spark"
 #
