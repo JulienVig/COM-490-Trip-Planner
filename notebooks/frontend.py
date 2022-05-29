@@ -1,3 +1,6 @@
+# %load_ext autoreload
+# %autoreload 2
+
 import time
 def pretify_seconds(seconds):
     return time.strftime('%H:%M:%S', time.gmtime(seconds))
@@ -192,21 +195,18 @@ station_Y = Station("Y_node", "Y", 47.33912, 8.54121)
 travel_times = 200
 wait_times = 10
 
-stop_ACC_dep = RouteStopDep("A-C_C_node_dep", "A-C_C", station_C, 0, "A-C", 'Zug', 0, None)
-stop_ACB_arr = RouteStopArr("A-C_B_node_arr", "A-C_B", station_B, 1, "A-C", 'Zug', travel_times, stop_ACC_dep)
-stop_ACB_dep = RouteStopDep("A-C_B_node_dep", "A-C_B", station_B, 1, "A-C", 'Zug', wait_times, stop_ACB_arr)
-stop_ACA_arr = RouteStopArr("A-C_A_node_arr", "A-C_A", station_A, 2, "A-C", 'Zug', travel_times, stop_ACB_dep)
-
-stop_GHH_dep = RouteStopDep("G-H_H_node_dep", "G-H_H", station_H, 0, "G-H", 'Zug', 0, None)
-stop_GHB_arr = RouteStopArr("G-H_B_node_arr", "G-H_B", station_B, 1, "G-H", 'Zug', travel_times, stop_GHH_dep)
-stop_GHB_dep = RouteStopDep("G-H_B_node_dep", "G-H_B", station_B, 1, "G-H", 'Zug', wait_times, stop_GHB_arr)
-stop_GHG_arr = RouteStopArr("G-H_G_node_arr", "G-H_G", station_G, 2, "G-H", 'Zug', travel_times, stop_GHB_dep)
-
-stop_HII_dep = RouteStopDep("H-I_I_node_dep", "H-I_I", station_I, 0, "H-I", 'Zug', 0, None)
-stop_HIH_arr = RouteStopArr("H-I_H_node_arr", "H-I_H", station_H, 1, "H-I", 'Zug', travel_times, stop_HII_dep)
-
-stop_BII_dep = RouteStopDep("B-I_I_node_dep", "B-I_I", station_I, 0, "B-I", 'Zug', 0, None)
-stop_BIB_arr = RouteStopArr("B-I_B_node_arr", "B-I_B", station_B, 1, "B-I", 'Zug', travel_times, stop_BII_dep)
+stop_ACC_dep = RouteStopDep("A-C_C_node_dep", "A-C_C", station_C, 0, "A-C", 'Train', 0, None)
+stop_ACB_arr = RouteStopArr("A-C_B_node_arr", "A-C_B", station_B, 1, "A-C", 'Train', travel_times, stop_ACC_dep)
+stop_ACB_dep = RouteStopDep("A-C_B_node_dep", "A-C_B", station_B, 1, "A-C", 'Train', wait_times, stop_ACB_arr)
+stop_ACA_arr = RouteStopArr("A-C_A_node_arr", "A-C_A", station_A, 2, "A-C", 'Train', travel_times, stop_ACB_dep)
+stop_GHH_dep = RouteStopDep("G-H_H_node_dep", "G-H_H", station_H, 0, "G-H", 'Train', 0, None)
+stop_GHB_arr = RouteStopArr("G-H_B_node_arr", "G-H_B", station_B, 1, "G-H", 'Train', travel_times, stop_GHH_dep)
+stop_GHB_dep = RouteStopDep("G-H_B_node_dep", "G-H_B", station_B, 1, "G-H", 'Train', wait_times, stop_GHB_arr)
+stop_GHG_arr = RouteStopArr("G-H_G_node_arr", "G-H_G", station_G, 2, "G-H", 'Train', travel_times, stop_GHB_dep)
+stop_HII_dep = RouteStopDep("H-I_I_node_dep", "H-I_I", station_I, 0, "H-I", 'Train', 0, None)
+stop_HIH_arr = RouteStopArr("H-I_H_node_arr", "H-I_H", station_H, 1, "H-I", 'Train', travel_times, stop_HII_dep)
+stop_BII_dep = RouteStopDep("B-I_I_node_dep", "B-I_I", station_I, 0, "B-I", 'Train', 0, None)
+stop_BIB_arr = RouteStopArr("B-I_B_node_arr", "B-I_B", station_B, 1, "B-I", 'Train', travel_times, stop_BII_dep)
 
 
 walking_time = 50
@@ -231,13 +231,15 @@ station_Y.set_stops_arr([walking_Y])
 
 target_arr_time = 10000
 my_list = [i for i in range(0, target_arr_time, 30)]
-generic_table = (my_list, [Distrib(1) for i in range(len(my_list))])
+generic_table = my_list
 
 table_dict = {stop_ACB_arr: generic_table, stop_ACA_arr: generic_table, stop_GHB_arr: generic_table, 
               stop_GHG_arr: generic_table, stop_HIH_arr: generic_table, stop_BIB_arr: generic_table}
 
 table = Timetable(table_dict, target_arr_time)
+
 all_stations = [station_A,station_B,station_C,station_G,station_H,station_I,station_Y]
+stations = {s.station_name: s for s in all_stations}
 
 # +
 from datetime import datetime
@@ -261,6 +263,19 @@ mock_real_solution1 = RealSolution(mock_trips1, [0.7,1], 0.7, 50)
 mock_real_solution2 = RealSolution(mock_trips2, [1,1], 1, 110)
 
 mock_solutions = [mock_real_solution1, mock_real_solution2]
+# -
+
+station_names = list(stations.keys())
+end = widgets.Dropdown(
+    options=station_names,
+    value=station_names[0],
+    description='Number:',
+    disabled=False,
+)
+
+end
+
+print()
 
 # +
 import ipywidgets as widgets
@@ -272,14 +287,16 @@ from denver import Denver
 
 output = widgets.Output()
 
+station_names = list(stations.keys())
+
 start=widgets.Dropdown(
-    options=all_stations,
-    value=station_I
+    options=station_names,
+    value='I'
 )
 
 end=widgets.Dropdown(
-    options=all_stations,
-    value=station_Y
+    options=station_names,
+    value='Y'
 )
 
 proba_slider=widgets.FloatSlider(
@@ -323,8 +340,8 @@ def run_button(b):
     #get all value of widget
 
     confidence=proba_slider.value
-    starting_station=start.value
-    arrival_station=end.value
+    starting_station= stations[start.value]
+    arrival_station=stations[end.value]
     
     weekday=date_picker.value.weekday()
     avoid =[]
