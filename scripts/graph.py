@@ -3,6 +3,7 @@ from bisect import bisect_right
 from datetime import datetime
 from scipy.stats import expon
 from trip import Trip
+import numpy as np
 
 
 class Node:
