@@ -155,5 +155,33 @@ hdfs dfs -get /group/abiskop1/project_data/timetableFixed.csv/part-00000-438de4f
 ```
 
 ```bash
+hdfs dfs -ls /group/abiskop1/project_data/
+```
+
+```bash
+hdfs dfs -ls /group/abiskop1/project_data/arrivalsRouteStopsFinal.csv
+```
+
+```bash
+hdfs dfs -get /group/abiskop1/project_data/arrivalsRouteStopsFinal.csv/part-00000-ddc78823-25d9-48d7-b3b1-8ade34f52159-c000.csv ../data/arrivalsFinal.csv
+```
+
+```bash
+hdfs dfs -ls /group/abiskop1/project_data/terminusFinal.csv
+```
+
+```bash
+hdfs dfs -get /group/abiskop1/project_data/terminusFinal.csv/part-00000-42723af3-f5dc-4843-bb31-3045ad620923-c000.csv ../data/terminusFinal.csv
+```
+
+```bash
+hdfs dfs -ls /group/abiskop1/project_data/departuresFinal.csv
+```
+
+```bash
+hdfs dfs -get /group/abiskop1/project_data/departuresFinal.csv/part-00000-6490bd92-9249-4c34-b2dc-954990e0e3af-c000.csv ../departuresFinal.csv
+```
+
+```bash
 
 ```
