@@ -33,11 +33,11 @@ class Node:
 
 
 class Station(Node):
-    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=[], stops_arr=[]):
+    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=None, stops_arr=None):
         super().__init__(node_id)
         self.station_name = station_name
-        self.stops_dep: List[Stop] = stops_dep
-        self.stops_arr: List[Stop] = stops_arr
+        self.stops_dep: List[Stop] = []
+        self.stops_arr: List[Stop] = []
         self.latitude = latitude
         self.longitude = longitude
         self.delays: Dict[str, np.array] = {'Bus': np.ones(24)*100, 'Tram': np.ones(24)*100,
@@ -174,10 +174,12 @@ class Timetable:
         Real-world arguments, binary search in the stop's timetable, return arrival time and index in the table
         Arrival time is the largest arrival time that is smaller than rw_station_arr_time
         """
-        stop_times = self.table[stop]
-        prev_arr_time, idx = Timetable._find_previous_arr_time(stop_times, rw_station_arr_time)
-        # if no previous arrival was found then prev_arr_time = -1 and idx = -1
-        return prev_arr_time, idx
+        stop_times = self.table.get(stop, None)
+        if stop_times is not None: 
+            prev_arr_time, idx = Timetable._find_previous_arr_time(stop_times, rw_station_arr_time)
+            # if no previous arrival was found then prev_arr_time = -1 and idx = -1
+            return prev_arr_time, idx
+        return -1, -1
 
     @staticmethod
     def _find_previous_arr_time(a, x):
@@ -199,8 +201,8 @@ class Timetable:
         """
         wait_time = max(10, wait_time)
         current_hour: int = RealSolution.convert_time_to_rw(stop.arr_time, self.target_arr_time).hour
-        stop_distrib = stop.station.delays[stop.transport_type][current_hour]
-        success_proba = stop_distrib.success_proba(wait_time)
+        lambda_ = stop.station.delays[stop.transport_type][current_hour]
+        success_proba = 1 - np.exp(- lambda_ * wait_time / 60)
         new_acc_success = acc_success * success_proba
         est_transfers_left = max(1.0, self.AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
@@ -209,14 +211,6 @@ class Timetable:
 
     def get_stop_arrival_time(self, stop: RouteStopArr, idx: int) -> int:
         return self.table[stop][0][idx]
-
-
-class Distrib:
-    def __init__(self, lambda_: float):
-        # Lambda is the exponential cdf of the delay distribution
-        # Indeed p(successful connection) = p(delay < wait_time ) = cdf(wait_time)
-        self.success_proba = lambda wait_time: 1 - np.exp(
-            - lambda_ * wait_time / 60)  # Distribution takes minutes as units
 
 
 class RealSolution:

@@ -15,6 +15,7 @@
 import sys
 sys.path.insert(1,'../scripts')
 from graph import Station, RouteStopArr, RouteStopDep, WalkingStop, Timetable
+from denver import Denver
 
 from os.path import join
 import pandas as pd
@@ -35,7 +36,7 @@ for i, row in station_df.iterrows():
     stations[row['STOP_NAME']]= Station(row['STOP_NAME'], row['STOP_NAME'], row['STOP_LAT'], row['STOP_LON'])
 # -
 
-station_df.head(1)
+station_df.head(20)
 
 # # init routestops
 
@@ -43,7 +44,7 @@ routes = pd.read_csv(join(DATA,'route_names_types.csv'), index_col=0)
 arrivals = pd.read_csv(join(DATA, 'arrivals_ttn.csv'), index_col=0).merge(routes, on='route_id')
 departure = pd.read_csv(join(DATA, 'departures_ttn.csv'), index_col=0).merge(routes, on='route_id')
 
-arrivals.head(1)
+arrivals.head(1).values
 
 departure.head(1)
 
@@ -91,13 +92,16 @@ TARGET = 1.589388e+09
 
 table_df = pd.read_csv(join(DATA,  'timetable_ext.csv'))
 table_df = table_df.drop_duplicates(['arrival_time_complete_unix', 'end_route_stop_id'])
+table_df.head(1)
 # -
 
 hours = table_df.groupby("end_route_stop_id").apply(lambda row: list(row.arrival_time_complete_unix)).to_frame()
+hours.head(1)
 
 timetable = {}
 for i, row in hours.iterrows():
-    timetable[row.name] = {'time': row[0]}
+    if row.name in routestops_arr:
+        timetable[routestops_arr[row.name]] = row[0]
 
 # + tags=[]
 len(timetable)
@@ -112,11 +116,14 @@ departure.transport_type.unique()
 delays = pd.read_csv(join(DATA, 'lambdas_ext.csv'))
 delays['produkt_id'] = delays.produkt_id.fillna('unknown')
 
-delays.produkt_id.replace({'Zug': 'Train'})
+delays.produkt_id.unique()
+
+delays['produkt_id'] = delays.produkt_id.replace({'Zug': 'Train', 'Standseilbahn': 'unknown'})
 
 for i, row in delays.iterrows():
     station_name = row['STOP_NAME']
-    stations[station_name].delays[row['produkt_id']][row['hour'] - 1] = row['lambda']
+    if station_name in stations:
+        stations[station_name].delays[row['produkt_id']][row['hour'] - 1] = row['lambda']
 
 # # init walking
 
@@ -154,5 +161,27 @@ for stop in routestops_dep.values():
 for stop in walking.values():
     stop.station.add_stop_dep(stop)
 # -
+# # Running Denver
+
+threshold = 0.0
+target_arr_time = 1589382000
+g_start = stations['Zürich, Leutschenbach']
+g_end = stations['Zürich, Oerlikerhus']
+actual_timetable = Timetable(timetable, target_arr_time)
+multiple_sols = False
+d = Denver(threshold, g_start, g_end, actual_timetable, multiple_sols, target_arr_time)
+sols = d.denver()
+sols
+
+
+# +
+donald = stations['Zürich, Oerlikerhus']
+print(len(donald.stops_arr))
+    
+mickey = donald.stops_arr[0]
+print(mickey.rw_prev_stop.station)
+# -
+
+g_start.stops_arr
 
 

@@ -21,6 +21,7 @@ class Denver:
         marks = Marks(blacklisted_route, FIRST_STATION_TS)
         self.init_first_station(self.g_start, marks, self.timetable)
         while not marks.empty():
+            print('it')
             self.update_lines(marks)
             self.update_walks(marks)
             self.update_stations(marks, self.timetable)
