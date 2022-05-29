@@ -65,6 +65,9 @@ class Station(Node):
     def __eq__(self, other: 'Station'):
         return self.station_name == self.station_name
 
+    def __hash__(self):
+        return hash(self.station_name)
+
 
 # abstract
 class Stop(Node):
