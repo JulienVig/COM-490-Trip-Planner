@@ -222,9 +222,9 @@ def visualize_path(solution: RealSolution, geostops, html_widget):
     fig.update_layout(
         margin ={'l':0,'t':0,'b':0,'r':0},
         mapbox = {
-            'center': {'lon': trip[0].station_dep.longitude, 'lat':trip[0].station_dep.latitude },
+            'center': {'lon': trips[0].station_dep.longitude, 'lat':trips[0].station_dep.latitude },
             'style': "open-street-map",
-            'zoom':10})
+            'zoom':12})
     
     total_time = (trips[-1].dep_time++timedelta(seconds=trips[-1].duration))-trips[0].dep_time
     
