@@ -52,12 +52,11 @@ def process_path(path):
 # -
 
 class RealSolution:
-    def __init__(self, trips, success_probas, confidence, walking_time, n_changes):   
+    def __init__(self, trips, success_probas, confidence, walking_time):   
         self.trips: List[Trip] = trips
         self.success_probas: List[float] = success_probas
         self.confidence: float = confidence
         self.walking_time: int = walking_time
-        self.n_changes: int = n_changes
     
     @staticmethod
     def generate(p: "Path") -> "RealSolution":
@@ -65,34 +64,35 @@ class RealSolution:
 
 
 # +
-from datetime import datetime, timedelta
+import sys
+sys.path.insert(1, '../scripts/')
+from trip import Trip
 
-class Trip:
-    def __init__(self, station_dep, station_arr, trans_type, duration, route_name, dep_time, n_stops_crossed):
-        self.station_dep: Node = station_dep
-        self.station_arr: Node = station_arr
-        self.trans_type: String = trans_type
-        self.duration: int = duration
-        self.route_name: String = route_name
-        self.dep_time: datetime = dep_time
-        self.n_stops_crossed: int = n_stops_crossed
+# class Trip:
+#     def __init__(self, station_dep, station_arr, trans_type, duration, route_name, dep_time, n_stops_crossed):
+#         self.station_dep: Node = station_dep
+#         self.station_arr: Node = station_arr
+#         self.trans_type: String = trans_type
+#         self.duration: int = duration
+#         self.route_name: String = route_name
+#         self.dep_time: datetime = dep_time
+#         self.n_stops_crossed: int = n_stops_crossed
             
-    def __str__(self):
-        if (self.trans_type=="Walking"):
-            prefix = "Walk"
-        else:
-            prefix = f"Take the line {self.route_name}"
-        return prefix+f" from {self.station_dep.station_name} to {self.station_arr.station_name} during {pretify_seconds(self.duration)}. Departure : {self.dep_time} Arrival : {self.dep_time+timedelta(seconds=self.duration)}"
+#     def __str__(self):
+#         if (self.trans_type=="Walking"):
+#             prefix = "Walk"
+#         else:
+#             prefix = f"Take the line {self.route_name}"
+#         return prefix+f" from {self.station_dep.station_name} to {self.station_arr.station_name} during {pretify_seconds(self.duration)}. Departure : {self.dep_time} Arrival : {self.dep_time+timedelta(seconds=self.duration)}"
     
-    def to_html(self):
-        if (self.trans_type=="Walking"):
-            head = "Walk"
-        else:
-            head=self.route_name
+#     def to_html(self):
+#         if (self.trans_type=="Walking"):
+#             head = "Walk"
+#         else:
+#             head=self.route_name
         
-        html_str = HTML_TRIP.format(self.trans_type, self.route_name, self.station_dep.station_name, self.station_arr.station_name, self.dep_time, self.dep_time+timedelta(seconds=self.duration), self.n_stops_crossed, self.duration)
-        return html_str
-
+#         html_str = HTML_TRIP.format(self.trans_type, self.route_name, self.station_dep.station_name, self.station_arr.station_name, self.dep_time, self.dep_time+timedelta(seconds=self.duration), self.n_stops_crossed, self.duration)
+#         return html_str
 
 # +
 # format with station dep name, station arr name, total time (nice string), walk time (nice string), success proba, transfers
@@ -127,7 +127,7 @@ CSS_WIDGET = """
 <style>
 .myul {
   list-style-type: none;
-  width: 300px;
+  width: 500px;
 }
 .myh3 {
   font: bold 20px/1.7 Helvetica, Verdana, sans-serif;
@@ -165,13 +165,13 @@ CSS_WIDGET = """
 
 # +
 import plotly.graph_objects as go
+from datetime import datetime, timedelta
     
 def visualize_path(solution: RealSolution, geostops, html_widget):
     geostops_id=geostops.set_index("id")
     
     #dict to map transport type to color and to accumulator
     color_cycle=["#0e51ed","#ed0000","#030591","#4fdb4b","#028a00"]
-    already_created_legend={"Walking":0,"Train":0,"Tram":0,"Bus":0,"NotSupported":0}
 
     fig = go.Figure()
 
@@ -179,25 +179,22 @@ def visualize_path(solution: RealSolution, geostops, html_widget):
     
     trips = solution.trips
     
-    lat_1,lon_1 = None, None
     for idx, trip in enumerate(trips):
         station0, station1, lon_0, lat_0, lon_1, lat_1, ttype, time = \
         trip.station_dep, trip.station_arr, trip.station_dep.longitude, trip.station_dep.latitude,\
         trip.station_arr.longitude, trip.station_arr.latitude, trip.trans_type, trip.duration
 
-        
-        display=False
-        if already_created_legend[ttype]==0:
-            display=True
-            already_created_legend[ttype]=1
+        line_name = trip.route_name
+        if trip.route_name is None:
+            line_name = "Walk"
 
         fig.add_trace(go.Scattermapbox(mode = "lines",
                                         lon = [lon_0,lon_1],
                                         lat = [lat_0,lat_1],
-                                        hovertext=trip.route_name,
+                                        hovertext=line_name,
                                         hoverinfo="text",
-                                        name=ttype,
-                                        showlegend=display,
+                                        name=line_name,
+                                        showlegend=True,
                                         marker = {'color':color_cycle[idx%len(color_cycle)]},
                                         line={'width':4}))
 
@@ -220,21 +217,22 @@ def visualize_path(solution: RealSolution, geostops, html_widget):
                                     hoverinfo="lon+lat+text",
                                     showlegend=False,
                                     marker = {'size': 20,'color':color_cycle[idx%len(color_cycle)]}))
-
+    
+    
     fig.update_layout(
         margin ={'l':0,'t':0,'b':0,'r':0},
         mapbox = {
-            'center': {'lon': 8.540192, 'lat':47.378177 },
+            'center': {'lon': trip[0].station_dep.longitude, 'lat':trip[0].station_dep.latitude },
             'style': "open-street-map",
-            'zoom':9})
+            'zoom':10})
     
     total_time = (trips[-1].dep_time++timedelta(seconds=trips[-1].duration))-trips[0].dep_time
     
-    html_out = "<ul>"+HTML_HEADER.format(trips[0].station_dep.station_name, trips[-1].station_arr.station_name, total_time, solution.walking_time, solution.confidence, solution.n_changes)
+    html_out = '<ul class="myul">'+HTML_HEADER.format(trips[0].station_dep.station_name, trips[-1].station_arr.station_name, total_time, solution.walking_time, solution.confidence, solution.n_transfers)
     for trip in trips:
-        html_out+=trip.to_html()
+        html_out+=trip.to_html(HTML_TRIP)
         
-    html_out = html_out+"<ul>"
+    html_out = html_out+"</ul>"
     
     html_widget.value = html_out+CSS_WIDGET
 
@@ -335,8 +333,8 @@ mock_trips2 = [
     Trip(station_G, station_Y, "Walking", 50, None, datetime.fromisoformat(day+'T17:10:10'), 1)
 ]
 
-mock_real_solution1 = RealSolution(mock_trips1, [0.7,1], 0.7, 50, 2)
-mock_real_solution2 = RealSolution(mock_trips2, [1,1], 1, 110, 2)
+mock_real_solution1 = RealSolution(mock_trips1, [0.7,1], 0.7, 50)
+mock_real_solution2 = RealSolution(mock_trips2, [1,1], 1, 110)
 
 mock_solutions = [mock_real_solution1, mock_real_solution2]
 
