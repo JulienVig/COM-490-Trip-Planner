@@ -3,54 +3,6 @@ def pretify_seconds(seconds):
     return time.strftime('%H:%M:%S', time.gmtime(seconds))
 
 
-# +
-def process_sequence(node_sequence):
-    departure = node_sequence[0]
-
-    # list of Trip(station0, station1, transport_type, time)
-    processed = []
-
-    walking_time = 0
-    current_route_start_time = 0
-    current_trip_type = None 
-    prev_node = departure
-    curr_dep_station = None
-    curr_route_name = None
-    
-    for n in node_sequence:
-        if (not type(n) == type(prev_node)) and not (isinstance(n, RouteStop) and isinstance(prev_node, RouteStop)):
-            if isinstance(n, Station) and current_trip_type is not None:  # End of a trip
-                duration = prev_node.arr_time - current_route_start_time
-                if current_trip_type == "transport":
-                    current_trip_type = "Bus"
-                    
-                elif current_trip_type == "walk":
-                    walking_time += duration
-                    current_trip_type = "Walking"
-                processed.append(Trip(curr_dep_station, n, current_trip_type, duration, curr_route_name, current_route_start_time))
-                curr_route_name = None
-                
-            if isinstance(n, RouteStop):  # Start of a new route
-                curr_route_name = n.route_name
-                current_route_start_time = n.arr_time
-                current_trip_type = "transport"
-                curr_dep_station = n.station
-
-            if isinstance(n, WalkingStop):  # Start of a walk
-                current_route_start_time = n.arr_time
-                current_trip_type = "walk"
-                curr_dep_station = n.station
-
-        prev_node = n
-        
-    return processed, pretify_seconds(walking_time), len(processed)-1
-
-def process_path(path):
-    return process_sequence(path.node_sequence)
-
-
-# -
-
 class RealSolution:
     def __init__(self, trips, success_probas, confidence, walking_time):   
         self.trips: List[Trip] = trips
@@ -63,36 +15,9 @@ class RealSolution:
         return RealSolution([], [], 0.0)
 
 
-# +
 import sys
 sys.path.insert(1, '../scripts/')
 from trip import Trip
-
-# class Trip:
-#     def __init__(self, station_dep, station_arr, trans_type, duration, route_name, dep_time, n_stops_crossed):
-#         self.station_dep: Node = station_dep
-#         self.station_arr: Node = station_arr
-#         self.trans_type: String = trans_type
-#         self.duration: int = duration
-#         self.route_name: String = route_name
-#         self.dep_time: datetime = dep_time
-#         self.n_stops_crossed: int = n_stops_crossed
-            
-#     def __str__(self):
-#         if (self.trans_type=="Walking"):
-#             prefix = "Walk"
-#         else:
-#             prefix = f"Take the line {self.route_name}"
-#         return prefix+f" from {self.station_dep.station_name} to {self.station_arr.station_name} during {pretify_seconds(self.duration)}. Departure : {self.dep_time} Arrival : {self.dep_time+timedelta(seconds=self.duration)}"
-    
-#     def to_html(self):
-#         if (self.trans_type=="Walking"):
-#             head = "Walk"
-#         else:
-#             head=self.route_name
-        
-#         html_str = HTML_TRIP.format(self.trans_type, self.route_name, self.station_dep.station_name, self.station_arr.station_name, self.dep_time, self.dep_time+timedelta(seconds=self.duration), self.n_stops_crossed, self.duration)
-#         return html_str
 
 # +
 # format with station dep name, station arr name, total time (nice string), walk time (nice string), success proba, transfers
@@ -183,7 +108,7 @@ def visualize_path(solution: RealSolution, html_widget):
         trip.station_arr.longitude, trip.station_arr.latitude, trip.trans_type, trip.duration
 
         line_name = trip.route_name
-        if trip.route_name is None:
+        if trip.route_name=="" and trip.trans_type=="Walk":
             line_name = "Walk"
 
         fig.add_trace(go.Scattermapbox(mode = "lines",
@@ -245,9 +170,9 @@ sys.path.insert(1, '../scripts/')
 
 from graph import *
 from denver import Denver
-from run import station_A,station_B,station_C,station_G,station_H,station_I,station_Y, table
+#from run import station_A,station_B,station_C,station_G,station_H,station_I,station_Y, table
 
-all_stations = [station_A,station_B,station_C,station_G,station_H,station_I,station_Y]
+#all_stations = [station_A,station_B,station_C,station_G,station_H,station_I,station_Y]
 
 
 # +
@@ -408,9 +333,9 @@ def run_button(b):
     
     with output:
         #Reverse start and arrival here because Tenet
-        #algo = Denver(confidence, arrival_station, starting_station, table, 1, 10000)
-        #solutions = algo.denver()
-        solutions = mock_solutions
+        algo = Denver(confidence, arrival_station, starting_station, table, False, 10000)
+        solutions = algo.denver()
+        #solutions = mock_solutions
         n_paths = len(solutions)
         if n_paths==1: print('An optimal paths is found!')
         else: print('{} optimal paths are found!'.format(n_paths))
