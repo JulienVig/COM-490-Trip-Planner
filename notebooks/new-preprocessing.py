@@ -1,4 +1,4 @@
-
+# ### New preprocessing
 
 import os
 # %load_ext sparkmagic.magics
@@ -21,7 +21,7 @@ get_ipython().run_line_magic(
 # from pyspark.sql.functions import udf, explode, split
 # import pyspark.sql.functions as F
 # from pyspark.sql.types import ArrayType, StringType, IntegerType
-#
+# from pyspark.sql.window import Window
 # REMOTE_PATH = "/group/abiskop1/project_data/"
 
 # + language="spark"
@@ -33,6 +33,11 @@ get_ipython().run_line_magic(
 # def read_orc(fname):
 #     df = spark.read.orc("/data/sbb/part_orc/{name}".format(name=fname))
 #     return df.filter((df.year == 2020) & (df.month == 5) & (df.day > 12) & (df.day < 18))
+#
+#
+# def write_hdfs(df, dirname):
+#     df.coalesce(1).write.format("com.databricks.spark.csv")\
+#    .option("header", "true").save(REMOTE_PATH + dirname)
 
 # + language="spark"
 # spark.conf.set("spark.sql.session.timeZone", "UTC+2")
@@ -90,16 +95,8 @@ get_ipython().run_line_magic(
 # ## Trips
 
 # + language="spark"
-# trips = spark.read.orc("/data/sbb/part_orc/trips")
-# trips.printSchema()
-# trips.count()
-# -
-
-# ### Trips at relevant date
-
-# + language="spark"
-# trips = trips.filter("year == 2020").filter("month == 5").filter("day == 13")
-# trips.count()
+# trips = read_orc("trips")
+# trips.show()
 # -
 
 # ### Checking assumption : pair (trip_id, route_id) is unique
@@ -121,3 +118,80 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # trips_stop_times.show(5)
+# -
+
+#
+
+# ### Buidling `route_stop_id`s
+
+# + language="spark"
+# trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
+# trips_stop_times.show(5)
+# -
+
+# ### Building time tables
+
+# + language="spark"
+# timetable = trips_stop_times.select(["route_stop_id", "arrival_time"])
+
+# + language="spark"
+# write_hdfs(timetable, "timetableRefac")
+# -
+
+# ### Building Route stops
+
+# + language="spark"
+#
+# max_stop_times = trips_stop_times.sort(F.desc("stop_sequence")).dropDuplicates(["route_id"])
+# max_stop_times = max_stop_times.select("trip_id")
+# max_stop_times.show(5)
+
+# + language="spark"
+# actual_routes = trips_stop_times.join(max_stop_times, "trip_id", "inner")
+# actual_routes.show(5)
+
+# + language="spark"
+# actual_routes.count()
+
+# + language="spark"
+#
+# w = Window.partitionBy("route_id").orderBy(col("stop_sequence"))
+# route_stops = actual_routes.withColumn("actual_stop_seq", F.row_number().over(w)).drop("trip_id", "stop_sequence")
+#
+# prevs = route_stops.drop("trip_headsign", "stop_id")\
+#                   .withColumnRenamed("actual_stop_seq", "prev_stop_seq")\
+#                   .withColumnRenamed("route_stop_id", "prev_route_stop_id")\
+#                   .withColumnRenamed("arrival_time", "prev_arrival_time")\
+#                   .withColumnRenamed("route_id", "prev_route_id")                    
+#
+# route_stops = route_stops.withColumn("matching_stop_seq", col("actual_stop_seq") - 1)
+#
+# route_stops = route_stops.join(prevs, (prevs.prev_stop_seq == route_stops.matching_stop_seq) \
+#                                       & (prevs.prev_route_id == route_stops.route_id), "leftouter")\
+#                          .cache()
+
+# + language="spark"
+# route_stops.show(5)
+
+# + language="spark"
+# count_nan_null(route_stops)
+
+# + language="spark"
+#
+# route_stops = route_stops.withColumn('unix_arrival_time', unix_timestamp('arrival_time', "HH:mm:ss"))
+# route_stops = route_stops.withColumn('unix_prev_arrival_time', unix_timestamp('prev_arrival_time', "HH:mm:ss"))
+#
+# route_stops = route_stops.withColumn("travel_time", col("arrival_time") - col("prev_arrival_time"))\
+#                         .cache()
+#                          #.drop("prev_stop_seq", "prev_arrival_time", "arrival_time")\
+#                          
+
+# + language="spark"
+# count_nan_null(route_stops)
+
+# + language="spark"
+#
+# route_stops.show()
+
+# + language="spark"
+#
