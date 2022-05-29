@@ -1,58 +1,67 @@
-from graph import Station, Timetable, Path, Marks, Solutions, RouteStop, RouteStopArr, RouteStopDep, WalkingStop
+from graph import Station, Timetable, RealSolution, Marks, RouteStopArr, WalkingStop, Node
 from typing import List
+
+TRANSFER_TIME = 120  # 2 minutes
+FIRST_STATION_TS = 0  # Chosen timestamp of the first station in graph (and last in real world)
 
 
 class Denver:
     def __init__(self, threshold: float, g_start: Station, g_end: Station,
-                 timetable: Timetable, n_sols_expected: int, target_arr_time: int):
-        self.threshold = threshold
+                 timetable: Timetable, multiple_sols: bool, target_arr_time: int):
         self.g_start = g_start
         self.g_end = g_end
         self.timetable = timetable
-        self.n_sols_expected = n_sols_expected
-        self.target_arr_time = target_arr_time
-        self.TRANSFER_TIME = 120  # 2 minutes
-        self.FIRST_STATION_TS = 0  # Chosen timestamp of the first station in graph (and last in real world)
+        self.multiple_sols = multiple_sols
+
+        timetable.threshold = threshold
+        timetable.target_arr_time = target_arr_time
 
     # prefix g_ is for reversed graph, prefix i_ is for input values
-    def denver(self, n_sols_found: int = 0, blacklisted_route: str = "", stop_recursion: bool = False) -> List[Path]:
-        marks = Marks(blacklisted_route)
-        solutions = Solutions(self.FIRST_STATION_TS, self.g_end)
+    def denver(self, blacklisted_route: str = "") -> List[RealSolution]:
+        marks = Marks(blacklisted_route, FIRST_STATION_TS)
         self.init_first_station(self.g_start, marks, self.timetable)
         while not marks.empty():
-            self.update_lines(marks, solutions)
+            self.update_lines(marks)
             self.update_walks(marks)
-            self.update_stations(marks, solutions, self.timetable)
+            self.update_stations(marks, self.timetable)
 
-        solutions.sort_solutions()
-        n_sols_found += solutions.n_solutions()
-        if not stop_recursion and n_sols_found < self.n_sols_expected and solutions.n_solutions():
-            for route_removed in solutions.sols[0].route_names:  # solutions sorted by best first
+        if self.g_end.previous_node is None:
+            return []
+        
+        nodes = self.make_best_path(self.g_end)
+        sol = RealSolution.generate(nodes, self.timetable.target_arr_time)
+        sols = [sol]
+        if self.multiple_sols:
+            self.multiple_sols = False
+            for route_removed in sol.route_names:
                 # Run the same algorithms on a graph with one route from the solution removed
-                solutions.sols += self.denver(n_sols_found, route_removed, stop_recursion=True)
+                # TODO : Reset graph
+                sols += self.denver(route_removed)
 
-        return solutions.sols
+        sols.sort(key=lambda s: (s.dep_time, -s.walking_time, -s.n_transfers), reverse=True)
+        return sols
 
-    def init_first_station(self, g_start: Station, marks: Marks, timetable: Timetable) -> None:
-        g_start.update_arrival(self.FIRST_STATION_TS, None, 1, 0)
+    @staticmethod
+    def init_first_station(g_start: Station, marks: Marks, timetable: Timetable) -> None:
+        g_start.update_arrival(FIRST_STATION_TS, None, 1, 0)
         for stop in g_start.stops_arr:
-            if isinstance(stop, RouteStop):
-                dep_time, _ = timetable.previous_arrival(stop, self.FIRST_STATION_TS)
+            if isinstance(stop, RouteStopArr):
+                dep_time, _ = timetable.previous_arrival(stop, FIRST_STATION_TS)
                 stop.update_arrival(dep_time, g_start, 1, 0)
                 marks.mark_route(stop)
             elif isinstance(stop, WalkingStop):
-                stop.update_arrival(self.FIRST_STATION_TS, g_start, 1, 0)
+                stop.update_arrival(FIRST_STATION_TS, g_start, 1, 0)
                 marks.mark_walk(stop)
 
     @staticmethod
-    def update_lines(marks: Marks, solutions: Solutions) -> None:
+    def update_lines(marks: Marks) -> None:
         # The stop associated with each route is the first stop with a new arr_time on this route
         for route_name, stop in marks.route_marks.items():
             update_prev = True
             while update_prev and stop.rw_prev_stop is not None:
                 new_arr_time = stop.arr_time + stop.travel_time
                 # Local & target pruning
-                if new_arr_time < solutions.best_target_arr_time and new_arr_time < stop.rw_prev_stop.arr_time:
+                if new_arr_time < marks.best_target_arr_time and new_arr_time < stop.rw_prev_stop.arr_time:
                     # Update the next stop
                     stop.rw_prev_stop.update_arrival(new_arr_time, stop, stop.acc_success, stop.n_changes)
                     # Mark next stop's station. Will be done twice but not a problem wrt correctness
@@ -74,15 +83,16 @@ class Denver:
                     marks.mark_walk(neighbor)
                     marks.mark_station(neighbor.station)
 
-    def update_stations(self, marks: Marks, solutions: Solutions, timetable: Timetable) -> None:
+    @staticmethod
+    def update_stations(marks: Marks, timetable: Timetable) -> None:
         for station in marks.station_marks:
             if not station.stops_dep:
                 continue
             earliest_stop = station.get_earliest_stop()  # Get the stop with the earliest arrival time
-            new_arr_time = earliest_stop.arr_time + self.TRANSFER_TIME
+            new_arr_time = earliest_stop.arr_time + TRANSFER_TIME
 
             # We update the station and station's stops if:
-            # - the new earliest arrival time is different from the current one 
+            # - the new earliest arrival time is different from the current one
             #   (if it's different then it's always better than the previous one, o.w. it wouldn't have changed)
             # - the previous node is not the same as new earliest stop
             # - the accumulated journey success probability is different
@@ -91,7 +101,7 @@ class Denver:
 
                 station.update_arrival(new_arr_time, earliest_stop, earliest_stop.acc_success, earliest_stop.n_changes)
                 # For each of the station's stops, see if the new earliest trip improves its arr_time
-                rw_station_arr_time = timetable.target_arr_time - station.arr_time + self.FIRST_STATION_TS
+                rw_station_arr_time = timetable.target_arr_time - station.arr_time + FIRST_STATION_TS
                 for stop in station.stops_arr:
                     if isinstance(stop, RouteStopArr):
                         # Note : All calls to timetable functions must take real-world arguments. Stored returned values
@@ -100,14 +110,16 @@ class Denver:
                         if idx == -1:  # No previous departure was found
                             continue
                         wait_time = rw_station_arr_time - rw_previous_arrival_time
-                        new_acc_success, safe = timetable.assert_safe_transfer(stop, idx, wait_time, self.threshold,
-                                                                               stop.acc_success)
+                        new_acc_success, safe = timetable.assert_safe_transfer(stop, idx, wait_time,
+                                                                               timetable.threshold, stop.acc_success)
                         # Check previous arrival times until we find that is safe enough or checked all of them
                         idx -= 1
                         while not safe and station.arr_time + wait_time < stop.arr_time and idx >= 0:
                             rw_previous_arrival_time = timetable.get_stop_arrival_time(stop, idx)
                             wait_time = rw_station_arr_time - rw_previous_arrival_time
-                            new_acc_success, safe = timetable.assert_safe_transfer(stop, idx, wait_time, self.threshold, stop.acc_success)
+                            new_acc_success, safe = timetable.assert_safe_transfer(stop, idx, wait_time,
+                                                                                   timetable.threshold,
+                                                                                   stop.acc_success)
                             idx -= 1
 
                         if safe and station.arr_time + wait_time < stop.arr_time:
@@ -121,9 +133,15 @@ class Denver:
                     else:
                         raise TypeError("Station is referencing a Stop that is not RouteStopArr or WalkingStop")
 
-                # Save all paths leading to the target_station
-                if station == solutions.target_station:
-                    for stop in station.stops_dep:
-                        solutions.save(Path.make(station, stop, self.target_arr_time, self.TRANSFER_TIME))
-
         marks.flush_stations()
+
+    @staticmethod
+    def make_best_path(station: Station) -> List[Node]:
+        """Create a path from station and the given stop coming in"""
+        node_sequence: List[Node] = []
+        n = station
+        while n is not None:
+            node_sequence.append(n)
+            n = n.previous_node
+
+        return node_sequence

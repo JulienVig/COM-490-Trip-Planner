@@ -51,15 +51,15 @@ station_Y.set_stops_arr([walking_Y])
 
 target_arr_time = 10000
 my_list = [i for i in range(0, target_arr_time, 30)]
-generic_table = (my_list, [Distrib(1) for i in range(len(my_list))])
+generic_table = (my_list, [Distrib(10) for i in range(len(my_list))])
 
 table_dict = {stop_ACB_arr: generic_table, stop_ACA_arr: generic_table, stop_GHB_arr: generic_table, 
               stop_GHG_arr: generic_table, stop_HIH_arr: generic_table, stop_BIB_arr: generic_table}
 
 table = Timetable(table_dict, target_arr_time)
-threshold = 0
-n_sols_expected = 2
-algo = Denver(threshold, station_Y, station_I, table, n_sols_expected, target_arr_time)
+threshold = 0.7
+multiple_sols = True
+algo = Denver(threshold, station_Y, station_I, table, multiple_sols, target_arr_time)
 sols = algo.denver()
-for i in range(n_sols_expected):
+for i in range(len(sols)):
     print(sols[i])
