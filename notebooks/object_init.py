@@ -89,8 +89,7 @@ TARGET = 1.589388e+09
 # +
 # Dict[RouteStopDep, Tuple[List[int], List[Distrib]]]
 
-table_df = pd.read_csv(join(DATA,  'timetableF.csv'))
-table_df = table_df[table_df.end_route_stop_id.str.endswith('D')].copy()
+table_df = pd.read_csv(join(DATA,  'timetable_ext.csv'))
 table_df = table_df.drop_duplicates(['arrival_time_complete_unix', 'end_route_stop_id'])
 # -
 
@@ -106,7 +105,18 @@ len(timetable)
 
 # ## delay distributions
 
-pd.read_csv(join(DATA, 'lambdas_ext.csv'))
+import numpy as np
+
+departure.transport_type.unique()
+
+delays = pd.read_csv(join(DATA, 'lambdas_ext.csv'))
+delays['produkt_id'] = delays.produkt_id.fillna('unknown')
+
+delays.produkt_id.replace({'Zug': 'Train'})
+
+for i, row in delays.iterrows():
+    station_name = row['STOP_NAME']
+    stations[station_name].delays[row['produkt_id']][row['hour'] - 1] = row['lambda']
 
 # # init walking
 
