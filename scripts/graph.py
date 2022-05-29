@@ -3,6 +3,7 @@ from bisect import bisect_right
 from datetime import datetime
 from scipy.stats import expon
 from trip import Trip
+import numpy as np
 
 
 class Node:
@@ -248,15 +249,15 @@ class RealSolution:
                 curr_station_dep = prev_node
                 curr_route_name = n.route_name
                 curr_dep_time = RealSolution._convert_time_to_rw(n.arr_time, target_arr_time)
-                curr_trans_type = 'transport'
+                curr_trans_type = n.transport_type
                 curr_n_stops_crossed = 1
 
             # Case beginning of a walking trip
             elif isinstance(n, WalkingStop):
                 curr_station_dep = prev_node
-                curr_route_name = 'walk_route'
+                curr_route_name = ''
                 curr_dep_time = RealSolution._convert_time_to_rw(n.arr_time, target_arr_time)
-                curr_trans_type = 'walk'
+                curr_trans_type = 'Walk'
                 curr_n_stops_crossed = 1
 
             # Case end of a trip
