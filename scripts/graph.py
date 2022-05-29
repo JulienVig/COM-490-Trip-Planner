@@ -36,28 +36,21 @@ class Station(Node):
     def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=None, stops_arr=None):
         super().__init__(node_id)
         self.station_name = station_name
-        self.stops_dep: List[Stop] = []
-        self.stops_arr: List[Stop] = []
+        self.stops: List[Stop] = []
         self.latitude = latitude
         self.longitude = longitude
         self.delays: Dict[str, np.array] = {'Bus': np.ones(24)*100, 'Tram': np.ones(24)*100,
                                             'Train': np.ones(24)*100, 'unknown': np.ones(24)*100}
 
-    def set_stops_dep(self, stops: List['Stop']) -> None:
-        self.stops_dep = stops
+    def set_stops(self, stops: List['Stop']) -> None:
+        self.stops = stops
 
-    def set_stops_arr(self, stops: List['Stop']) -> None:
-        self.stops_arr = stops
-
-    def add_stop_dep(self, stop: 'Stop') -> None:
-        self.stops_dep.append(stop)
-
-    def add_stop_arr(self, stop: 'Stop') -> None:
-        self.stops_arr.append(stop)
+    def add_stop(self, stop: 'Stop') -> None:
+        self.stops.append(stop)
 
     def get_earliest_stop(self) -> 'Stop':
-        earliest = self.stops_dep[0]
-        for stop in self.stops_dep:
+        earliest = self.stops[0]
+        for stop in self.stops:
             if stop.arr_time < earliest.arr_time:
                 earliest = stop
         return earliest
@@ -66,7 +59,7 @@ class Station(Node):
         return self.station_name
 
     def __eq__(self, other: 'Station'):
-        return self.station_name == self.station_name
+        return self.station_name == other.station_name
 
     def __hash__(self):
         return hash(self.station_name)
@@ -79,35 +72,18 @@ class Stop(Node):
         self.stop_name: str = stop_name
         self.station: Station = station
 
+    def __str__(self):
+        return self.stop_name
 
 class RouteStop(Stop):
     def __init__(self, node_id, stop_name: str, station: Station, idx_on_route, route_name: str, transport_type: str,
-                 travel_time: int):
+                 travel_time: int, rw_prev_stop: 'RouteStop'):
         super().__init__(node_id, stop_name, station)
         self.idx_on_route: int = idx_on_route
         self.route_name: str = route_name
         self.transport_type: str = transport_type
         self.travel_time: int = travel_time
-
-
-class RouteStopArr(RouteStop):
-    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time,
-                 rw_prev_stop=None):
-        super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time)
-        self.rw_prev_stop: RouteStopDep = rw_prev_stop
-
-    def set_prev_stop(self, rw_prev_stop):
-        self.rw_prev_stop: RouteStopDep = rw_prev_stop
-
-
-class RouteStopDep(RouteStop):
-    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time,
-                 rw_prev_stop=None):
-        super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, wait_time)
-        self.rw_prev_stop: RouteStopArr = rw_prev_stop
-
-    def set_prev_stop(self, rw_prev_stop):
-        self.rw_prev_stop: RouteStopDep = rw_prev_stop
+        self.rw_prev_stop: 'RouteStop' = rw_prev_stop
 
 
 class WalkingStop(Stop):
@@ -159,17 +135,17 @@ class Marks:
 
 
 class Timetable:
-    def __init__(self, table, target_arr_time=-1):
+    def __init__(self, table, threshold, target_arr_time):
         # key is RouteStopDep.stop_name, value is (List[arrival_times], List[delay distributions])
-        self.table: Dict[RouteStopArr, List[int]] = table  # timestamps are ascending in rw
+        self.table: Dict[RouteStop, List[int]] = table  # timestamps are ascending in rw
         self.target_arr_time: int = target_arr_time
-        self.threshold = 0.0
+        self.threshold: int = threshold
         self.AVG_NB_OF_TRANSFER = 5
 
     def set_target_time(self, target_arr_time):
         self.target_arr_time = target_arr_time
 
-    def previous_arrival(self, stop: RouteStopArr, rw_station_arr_time: int) -> Tuple[int, int]:
+    def previous_arrival(self, stop: RouteStop, rw_station_arr_time: int) -> Tuple[int, int]:
         """
         Real-world arguments, binary search in the stop's timetable, return arrival time and index in the table
         Arrival time is the largest arrival time that is smaller than rw_station_arr_time
@@ -189,7 +165,7 @@ class Timetable:
             return a[i - 1], i - 1
         return -1, -1  # returns -1 and 0 if no valid timestamp was found
 
-    def assert_safe_transfer(self, stop: RouteStopArr, idx: int, wait_time: int,
+    def assert_safe_transfer(self, stop: RouteStop, wait_time: int, rw_previous_arrival_time: int,
                              threshold: float, acc_success: float) -> Tuple[float, bool]:
         """
         Assert using chosen heuristics if transfer is safe, and return success chance and safe boolean.
@@ -200,7 +176,7 @@ class Timetable:
         :return: (new_acc_success, is_safe)
         """
         wait_time = max(10, wait_time)
-        current_hour: int = RealSolution.convert_time_to_rw(stop.arr_time, self.target_arr_time).hour
+        current_hour: int = RealSolution.convert_time_to_rw(rw_previous_arrival_time, self.target_arr_time).hour
         lambda_ = stop.station.delays[stop.transport_type][current_hour]
         success_proba = 1 - np.exp(- lambda_ * wait_time / 60)
         new_acc_success = acc_success * success_proba
@@ -209,7 +185,7 @@ class Timetable:
         is_safe = new_acc_success > threshold and success_proba > pow(threshold, 1 / est_transfers_left)
         return new_acc_success, is_safe
 
-    def get_stop_arrival_time(self, stop: RouteStopArr, idx: int) -> int:
+    def get_stop_arrival_time(self, stop: RouteStop, idx: int) -> int:
         return self.table[stop][0][idx]
 
 
@@ -240,11 +216,11 @@ class RealSolution:
         prev_node = nodes[0]
         for n in nodes[1:]:
             # Case 2 RouteStop, or 2 WalkingStop : we are on some route
-            if isinstance(n, RouteStop) and isinstance(prev_node, RouteStop) or type(n) == type(prev_node):
+            if type(n) == type(prev_node):
                 curr_n_stops_crossed += 1
 
             # Case beginning of a transport trip
-            elif isinstance(n, RouteStopDep):
+            elif isinstance(n, RouteStop):
                 curr_station_dep = prev_node
                 curr_route_name = n.route_name
                 curr_dep_time = RealSolution.convert_time_to_rw(n.arr_time, target_arr_time)
@@ -284,9 +260,12 @@ class RealSolution:
         return RealSolution(trips, success_probas, confidence, walking_time)
 
     def __str__(self):
-        strings = ['coucou\n']
+        strings = []
         for t in self.trips:
             strings.append(f"{t.station_dep} to {t.station_arr}\n")
+
+        for succ_proba in self.success_probas:
+            strings.append(f"{succ_proba}\n")
         return ''.join(strings)
 
     @staticmethod

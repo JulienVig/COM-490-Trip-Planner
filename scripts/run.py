@@ -10,23 +10,17 @@ station_I = Station("I_node", "I", 0, 0)
 station_Y = Station("Y_node", "Y", 0, 0)
 
 travel_times = 200
-wait_times = 10
 
-stop_ACC_dep = RouteStopDep("A-C_C_node_dep", "A-C_C", station_C, 0, "A-C", 'Zug', 0, None)
-stop_ACB_arr = RouteStopArr("A-C_B_node_arr", "A-C_B", station_B, 1, "A-C", 'Zug', travel_times, stop_ACC_dep)
-stop_ACB_dep = RouteStopDep("A-C_B_node_dep", "A-C_B", station_B, 1, "A-C", 'Zug', wait_times, stop_ACB_arr)
-stop_ACA_arr = RouteStopArr("A-C_A_node_arr", "A-C_A", station_A, 2, "A-C", 'Zug', travel_times, stop_ACB_dep)
-
-stop_GHH_dep = RouteStopDep("G-H_H_node_dep", "G-H_H", station_H, 0, "G-H", 'Zug', 0, None)
-stop_GHB_arr = RouteStopArr("G-H_B_node_arr", "G-H_B", station_B, 1, "G-H", 'Zug', travel_times, stop_GHH_dep)
-stop_GHB_dep = RouteStopDep("G-H_B_node_dep", "G-H_B", station_B, 1, "G-H", 'Zug', wait_times, stop_GHB_arr)
-stop_GHG_arr = RouteStopArr("G-H_G_node_arr", "G-H_G", station_G, 2, "G-H", 'Zug', travel_times, stop_GHB_dep)
-
-stop_HII_dep = RouteStopDep("H-I_I_node_dep", "H-I_I", station_I, 0, "H-I", 'Zug', 0, None)
-stop_HIH_arr = RouteStopArr("H-I_H_node_arr", "H-I_H", station_H, 1, "H-I", 'Zug', travel_times, stop_HII_dep)
-
-stop_BII_dep = RouteStopDep("B-I_I_node_dep", "B-I_I", station_I, 0, "B-I", 'Zug', 0, None)
-stop_BIB_arr = RouteStopArr("B-I_B_node_arr", "B-I_B", station_B, 1, "B-I", 'Zug', travel_times, stop_BII_dep)
+stop_ACC = RouteStop("A-C_C_node", "A-C_C", station_C, 0, "C-A", 'Train', 0, None)
+stop_ACB = RouteStop("A-C_B_node", "A-C_B", station_B, 1, "C-A", 'Train', travel_times, stop_ACC)
+stop_ACA = RouteStop("A-C_A_node", "A-C_A", station_A, 2, "C-A", 'Train', travel_times, stop_ACB)
+stop_GHH = RouteStop("G-H_H_node", "G-H_H", station_H, 0, "H-G", 'Train', 0, None)
+stop_GHB = RouteStop("G-H_B_node", "G-H_B", station_B, 1, "H-G", 'Train', travel_times, stop_GHH)
+stop_GHG = RouteStop("G-H_G_node", "G-H_G", station_G, 2, "H-G", 'Train', travel_times, stop_GHB)
+stop_HII = RouteStop("H-I_I_node", "H-I_I", station_I, 0, "I-H", 'Train', 0, None)
+stop_HIH = RouteStop("H-I_H_node", "H-I_H", station_H, 1, "I-H", 'Train', travel_times, stop_HII)
+stop_BII = RouteStop("B-I_I_node", "B-I_I", station_I, 0, "I-B", 'Train', 0, None)
+stop_BIB = RouteStop("B-I_B_node", "B-I_B", station_B, 1, "I-B", 'Train', travel_times, stop_BII)
 
 
 walking_time = 50
@@ -35,31 +29,28 @@ walking_G = WalkingStop("Wa_G_node", "Wa_G", station_G, [(walking_Y, walking_tim
 walking_Y.set_neighbors([(walking_G, walking_time)])
 
 # station_A.set_stops_dep([])
-station_A.set_stops_arr([stop_ACA_arr])
-station_B.set_stops_dep([stop_ACB_dep, stop_GHB_dep])
-station_B.set_stops_arr([stop_ACB_arr, stop_GHB_arr, stop_BIB_arr])
-station_C.set_stops_dep([stop_ACC_dep])
-# station_C.set_stops_arr([])
-station_G.set_stops_dep([walking_G])
-station_G.set_stops_arr([stop_GHG_arr, walking_G])
-station_H.set_stops_dep([stop_GHH_dep])
-station_H.set_stops_arr([stop_HIH_arr])
-station_I.set_stops_dep([stop_HII_dep, stop_BII_dep])
-# station_I.set_stops_arr([])
-station_Y.set_stops_dep([walking_Y])
-station_Y.set_stops_arr([walking_Y])
+station_A.set_stops([stop_ACA])
+station_B.set_stops([stop_ACB, stop_GHB, stop_BIB])
+station_C.set_stops([stop_ACC])
+
+station_G.set_stops([walking_G, stop_GHG])
+station_H.set_stops([stop_GHH, stop_HIH])
+station_I.set_stops([stop_HII, stop_BII])
+station_Y.set_stops([walking_Y])
 
 target_arr_time = 10000
 my_list = [i for i in range(0, target_arr_time, 30)]
-generic_table = (my_list, [Distrib(10) for i in range(len(my_list))])
+generic_table = my_list
 
-table_dict = {stop_ACB_arr: generic_table, stop_ACA_arr: generic_table, stop_GHB_arr: generic_table, 
-              stop_GHG_arr: generic_table, stop_HIH_arr: generic_table, stop_BIB_arr: generic_table}
+table_dict = {stop_ACB: generic_table, stop_ACA: generic_table, stop_GHB: generic_table,
+              stop_GHG: generic_table, stop_HIH: generic_table, stop_BIB: generic_table}
 
-table = Timetable(table_dict, target_arr_time)
 threshold = 0.7
-multiple_sols = True
+table = Timetable(table_dict, threshold, target_arr_time)
+multiple_sols = False
 algo = Denver(threshold, station_Y, station_I, table, multiple_sols, target_arr_time)
 sols = algo.denver()
+
+print(f"Found {len(sols)} paths")
 for i in range(len(sols)):
     print(sols[i])
