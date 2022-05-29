@@ -167,7 +167,8 @@ CSS_WIDGET = """
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
     
-def visualize_path(solution: RealSolution, html_widget):    
+
+def visualize_path(solution: RealSolution, html_widget):
     #dict to map transport type to color and to accumulator
     color_cycle=["#0e51ed","#ed0000","#030591","#4fdb4b","#028a00"]
 
