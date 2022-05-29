@@ -26,6 +26,12 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 #
+#
+#
+# def count_nan_null(df):
+#     df.select([F.count(F.when(F.isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
+#
+#
 # def read_orc(fname):
 #     df = spark.read.orc("/data/sbb/part_orc/{name}".format(name=fname))
 #     return df.filter((df.year == 2020) & (df.month == 5) & (df.day > 12) & (df.day < 18))
@@ -59,6 +65,9 @@ get_ipython().run_line_magic(
 
 
 # + language="spark"
+# count_nan_null(stopt)
+
+# + language="spark"
 #
 # ## number of trips
 # print("Number of stop times : ")
@@ -67,15 +76,6 @@ get_ipython().run_line_magic(
 # stopt.select(countDistinct("trip_id")).show()
 # print("Number of stops :")
 # stopt.select(countDistinct("stop_id")).show()
-# -
-
-# ### Select the precise week : 
-
-# + language="spark"
-# stopt = stopt.filter("year == 2020").filter("month == 5").filter("day >= 13").filter("day < 17").cache()
-
-# + language="spark"
-# stopt
 # -
 
 # ### We select the stops within range
@@ -106,6 +106,9 @@ get_ipython().run_line_magic(
 # finalCols = ["trip_id", "arrival_time_complete", "departure_time_complete", "arrival_time_complete_unix", "departure_time_complete_unix", "stop_id", "stop_sequence"]
 # stopt = stopt.select(finalCols)
 # stopt.show()
+
+# + language="spark"
+# count_nan_null(stopt)
 # -
 
 # ## Difference between arrival time and departure time
@@ -146,7 +149,7 @@ g.set_yscale("log")
 # stopt = timetableRouteArrival
 # timetableRouteArrival = timetableRouteArrival.select(["route_stop_id", "arrival_time_complete_unix", "departure_time_complete_unix", "route_id", "stop_id", "stop_sequence"])
 #
-# timetableRouteArrival = timetableRouteArrival.dropDuplicates().cache()
+# timetableRouteArrival = timetableRouteArrival.dropDuplicates()
 # print(timetableRouteArrival.count())
 # timetableRouteArrival.show(10)
 # -
@@ -213,105 +216,6 @@ allTimetableRouteArrival
 
 stationsDB.to_csv("../data/stations.csv")
 
-# ## Building Stops 
-#
-#
-#
-# /!\ Simply doesn't work that way :
-#
-# We actually need the trip of all the `time_stops` to match the consecutive stops properly.
-#
-#
-# RouteStops : 
-#
-# - id, 
-# - next_stop, 
-# - travel_time,
-# - idx_on_rout
-
-# + language="spark"
-# routeStops.show(5)
-# + language="spark"
-# routeStops.show(5)
-
-# + language="spark"
-# finalCols = ["STOP_NAME", "end_route_stop_id", "route_stop_id", "departure_time_complete_unix", "arrival_time_complete_unix", "stop_sequence", "route_id", "stop_sequence", "end"]
-# routeStops = routeStops.join(stations, stations.station_id == routeStops.stop_id, "left").select(finalCols)
-
-# + language="spark"
-# ## show the schema
-# routeStops.sort("end_route_stop_id", "stop_sequence").show()
-
-# + language="spark"
-# routeStops.drop("departure_time_complete_unix").drop("arrival_time_complete_unix").dropDuplicates().count()
-
-# + language="spark"
-# arrivals = routeStops.filter(routeStops.end == "A").drop("departure_time_complete_unix").withColumnRenamed("arrival_time_complete_unix", "reached_time")
-# departures = routeStops.filter(routeStops.end == "D").drop("arrival_time_complete_unix").withColumnRenamed("departure_time_complete_unix", "reached_time")
-# print(arrivals.count())
-# print(departures.count())
-
-# + language="spark"
-# arrivals.show(5)
-# departures.show(5)
-
-# + language="spark"
-# route_stops_cols = ["STOP_NAME", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "travel_time", "stop_sequence"]
-
-# + language="spark"
-# ## points to the matching end
-# arrivals = arrivals.withColumn("matching_arrival", col("stop_sequence") - 1)
-# targets = departures.select(["end_route_stop_id", "stop_sequence", "route_stop_id", "reached_time"])
-# targets = targets.withColumnRenamed("end_route_stop_id", "target_end_route_stop_id")
-# targets = targets.withColumnRenamed("stop_sequence", "target_sequence")
-# targets = targets.withColumnRenamed("route_stop_id", "target_route_stop_id")
-# targets = targets.withColumnRenamed("reached_time", "reached_time_target")
-# sel_cols = ["STOP_NAME", "stop_sequence", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id"]
-#
-#
-# terminus = arrivals.filter("matching_arrival == -1")\
-#             .select(sel_cols)\
-#             .dropDuplicates()\
-#             .cache()
-# arrivals = arrivals.join(targets, (targets.target_route_stop_id == departures.route_stop_id) & (targets.target_sequence == arrival.matching_arrival))\
-#             .select(sel_cols + ["reached_time_target"])\
-#             .dropDuplicates()\
-#             .cache()
-
-# + language="spark"
-# departures = departures.withColumn("travel_time", col("next_arrival_time") - col("departure_time_complete_unix"))
-# departures = departures.select(route_stops_cols)\
-#             .dropDuplicates().cache()
-# print(departures.count())
-# departures.show(5)
-
-# + language="spark"
-# arrivals = arrivals.withColumn("travel_time", col("departure_time_complete_unix") - col("arrival_time_complete_unix"))
-# arrivals = arrivals.withColumn("target_end_route_stop_id", \
-#                                concat(split(col("end_route_stop_id"), "$")[0], lit("$"), split(col("end_route_stop_id"), "$")[1], lit("$D")))
-# arrivals = arrivals.select(route_stops_cols).dropDuplicates().cache()
-# arrivals.show(5)
-
-# + language="spark"
-# print("Route stop count : ")
-# print(routeStops.count())
-# print("Arrival count :")
-# print(arrivals.count())
-# print("Departure count :")
-# print(departures.count())
-# #assert(routeStops.count() == arrivals.count() + departures.count())
-# + language="spark"
-# print(arrivals.select("end_route_stop_id").count())
-# print(targets.select("target_end_route_stop_id").count())
-# print(departures.withColumn("matching_arrival", col("stop_sequence") + 1).join(targets, (targets.target_route_stop_id == departures.route_stop_id) & (targets.target_sequence == departures.matching_arrival))\
-#             .select(["STOP_NAME", "stop_sequence", "departure_time_complete_unix", "route_id", "end_route_stop_id", "route_stop_id", "target_end_route_stop_id", "next_arrival_time"])\
-#             .dropDuplicates().count())
-
-
-# + language="spark"
-# routeStops.select("end_route_stop_id").count()
-# -
-
 # ## Builing Stops
 
 # + language="spark"
@@ -326,17 +230,6 @@ stationsDB.to_csv("../data/stations.csv")
 # + language="spark"
 # arrivals = stopTrips.filter(stopTrips.end == "A").drop("departure_time_complete_unix").withColumnRenamed("arrival_time_complete_unix", "reached_time")
 # departures = stopTrips.filter(stopTrips.end == "D").drop("arrival_time_complete_unix").withColumnRenamed("departure_time_complete_unix", "reached_time")
-
-# + language="spark"
-# print(stopt.select(["route_id", "STOP_NAME", "stop_sequence"]).dropDuplicates().count())
-# print(stopt.select(["route_id", "STOP_NAME"]).dropDuplicates().count())
-# print(stopTrips.select(["route_id", "STOP_NAME", "stop_sequence"]).dropDuplicates().count())
-# print(stopTrips.select(["end_route_stop_id", "stop_sequence"]).dropDuplicates().count())
-# print(arrivals.select(["end_route_stop_id", "stop_sequence"]).dropDuplicates().count())
-
-# + language="spark"
-# print(stopt.select(["route_id", "STOP_NAME"]).count())
-# print(stopTrips.select(["end_route_stop_id"]).count())
 
 # + language="spark"
 # ## points to the matching end
@@ -370,21 +263,22 @@ stationsDB.to_csv("../data/stations.csv")
 # cols = list(set(arrivals.schema.names) - {'travel_time'})
 # arrivals = arrivals.groupBy(cols).min()\
 #             .withColumnRenamed("min(travel_time)", "travel_time")\
+#             .dropDuplicates()
+#
+# cols = list(set(arrivals.schema.names) - {'target_end_route_stop_id'})
+# arrivals = arrivals.groupBy(cols).agg(F.first("target_end_route_stop_id"))\
+#             .withColumnRenamed("first(target_end_route_stop_id, false)", "target_end_route_stop_id")\
 #             .dropDuplicates()\
 #             .cache()
 #
 #
 # arrivals.show(5)
-
-# + language="spark"
-# from pyspark.sql.functions import isnan, when, count, col
-# arrivals.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in arrivals.columns]).show()
 # -
 
 # Excuse me but wtf
 
 # + language="spark"
-# print("All arrival numbers : ", allArrivalNumbers)
+# #print("All arrival numbers : ", allArrivalNumbers)
 # print("Number of starts : ", terminus.count())
 # print("Number of arrival : ", arrivals.count())
 # print(arrivals.count() + terminus.count())
@@ -434,11 +328,11 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 
 # + language="spark"
 # arrivals.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "arrivalsRouteStops.csv")
+#    .option("header", "true").save(REMOTE_PATH + "arrivalsRouteStopsFinal.csv")
 
 # + language="spark"
 # terminus.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "terminus.csv")
+#    .option("header", "true").save(REMOTE_PATH + "terminusFinal.csv")
 # -
 
 # ### Dealing with departures
@@ -450,12 +344,20 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 #           .withColumn("target_end_route_stop_id", concat(col("route_stop_id"), lit("$A")))\
 #           .withColumnRenamed("wait_weight", "travel_time")\
 #           .select(["route_stop_id", "stop_id", "route_id", "STOP_NAME", "end_route_stop_id", "travel_time", "target_end_route_stop_id"])\
-#           .dropDuplicates()\
-#           .cache()
+#           .dropDuplicates()
+#
+#
+# cols = list(set(departures.schema.names) - {'travel_time'})
+# departures = departures.groupBy(cols).min()\
+#             .withColumnRenamed("min(travel_time)", "travel_time")\
+#             .dropDuplicates()\
+#             .cache()
+#
 # departures.show(5)       
 
 # + language="spark"
-# arrivals.select("end_route_stop_id").dropDuplicates().count() + terminus.count()
+#
+# departures = departures.drop("stop_id").dropDuplicates()
 
 # + language="spark"
 # print("Number of starts : ", terminus.count())
@@ -464,20 +366,21 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 # print(departures.count())
 
 # + language="spark"
-#
-# arrivals = arrivals.withColumn("travel_time", col("travel_time").cast(IntegerType()))
+# dummy.dropna().count()
 
 # + language="spark"
-#
+# dummy = firsts.join(arrivals, "end_route_stop_id", "inner")
+# #dummy = dummy.filter(dummy.target_end_route_stop_id == dummy["first(target_end_route_stop_id, false)"])
 
 # + language="spark"
-# print(arrivals.select("end_route_stop_id").dropDuplicates().count())
-# print(terminus.select("end_route_stop_id").dropDuplicates().count())
-# print(departures.select("end_route_stop_id").dropDuplicates().count())
+# dummy.show(3)
+
+# + language="spark"
+# firsts = arrivals.select(["end_route_stop_id", "target_end_route_stop_id"]).filter(arrivals['target_end_route_stop_id'].isNotNull()).groupBy("end_route_stop_id").agg(F.first("target_end_route_stop_id"))
 
 # + language="spark"
 # departures.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "departures.csv")
+#    .option("header", "true").save(REMOTE_PATH + "departuresFinal.csv")
 # -
 # ## Integrity test
 #
@@ -520,14 +423,10 @@ sns.barplot(data=tt_distrib, x="travel_time", y="count")
 # + language="spark"
 # print(timetableRouteArrival.show())
 # timetableRouteArrival.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in timetableRouteArrival.columns]).show()
+# -
 
 
-# + language="spark"
-#
-#
-# def count_nan_null(df):
-#     df.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
-#
+
 
 # + language="spark"
 #
