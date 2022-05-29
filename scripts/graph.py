@@ -283,6 +283,12 @@ class RealSolution:
         confidence /= proba
         return RealSolution(trips, success_probas, confidence, walking_time)
 
+    def __str__(self):
+        strings = ['coucou\n']
+        for t in self.trips:
+            strings.append(f"{t.station_dep} to {t.station_arr}\n")
+        return ''.join(strings)
+
     @staticmethod
     def convert_time_to_rw(time, target_arr_time) -> datetime:
         return datetime.fromtimestamp(target_arr_time - time)

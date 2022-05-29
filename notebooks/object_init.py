@@ -244,19 +244,43 @@ for stop in routestops_dep.values():
     
 for stop in walking.values():
     stop.station.add_stop_dep(stop)
+
+
 # -
 # # Running Denver
 
+def cleanup():
+    for s in routestops_arr.values():
+        s.cleanup()
+    for s in routestops_dep.values():
+        s.cleanup()
+    for s in walking.values():
+        s.cleanup()
+    for s in stations.values():
+        s.cleanup()
+
+
+cleanup()
 threshold = 0.0
 target_arr_time = 1589382000
-g_start = stations['Zürich, Leutschenbach']
-g_end = stations['Zürich, Oerlikerhus']
+g_start_2 = stations['Kloten Balsberg, Bahnhof']
+g_start = stations['Zürich, Auzelg']
+g_end = stations['Zürich, Leutschenbach']
 actual_timetable = Timetable(timetable, target_arr_time)
 multiple_sols = False
-d = Denver(threshold, g_start, g_end, actual_timetable, multiple_sols, target_arr_time)
+d = Denver(threshold, g_start_2, g_end, actual_timetable, multiple_sols, target_arr_time)
 sols = d.denver()
-sols
+print(sols)
+for s in sols:
+    print(s)
 
+
+# for s in g_start.stops_dep:
+#     print(s.route_name)
+new_mickey = g_start.stops_dep[7]
+print(new_mickey.stop_name)
+print(new_mickey.rw_prev_stop.rw_prev_stop.stop_name)
+print(stations['Kloten Balsberg, Bahnhof'])
 
 # +
 donald = stations['Zürich, Oerlikerhus']
@@ -264,8 +288,25 @@ print(len(donald.stops_arr))
     
 mickey = donald.stops_arr[0]
 print(mickey.rw_prev_stop.station)
-# -
+print(mickey.route_name)
 
-g_start.stops_arr
+# +
+
+stops1 = g_start_2.stops_arr[6]
+stops2 = g_start_2.stops_arr[7]
+stops3 = g_start_2.stops_arr[8]
+while stops1 is not None:
+    print(stops1.stop_name)
+    stop1 = stops1.rw_prev_stop
+print('finito lol')
+while stops2 is not None:
+    print(stops2.stop_name)
+    stop2 = stops2.rw_prev_stop
+print('finito lol')
+while stops3 is not None:
+    print(stops3.stop_name)
+    stop3 = stops3.rw_prev_stop
+print('finito lol')
+# -
 
 
