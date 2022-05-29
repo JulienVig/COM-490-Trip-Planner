@@ -27,7 +27,7 @@ class Denver:
 
         if self.g_end.previous_node is None:
             return []
-        
+
         nodes = self.make_best_path(self.g_end)
         sol = RealSolution.generate(nodes, self.timetable.target_arr_time)
         sols = [sol]
@@ -83,8 +83,7 @@ class Denver:
                     marks.mark_walk(neighbor)
                     marks.mark_station(neighbor.station)
 
-    @staticmethod
-    def update_stations(marks: Marks, timetable: Timetable) -> None:
+    def update_stations(self, marks: Marks, timetable: Timetable) -> None:
         for station in marks.station_marks:
             if not station.stops_dep:
                 continue
@@ -132,7 +131,8 @@ class Denver:
                             marks.mark_walk(stop)
                     else:
                         raise TypeError("Station is referencing a Stop that is not RouteStopArr or WalkingStop")
-
+            if station == self.g_end:
+                marks.best_target_arr_time = station.arr_time
         marks.flush_stations()
 
     @staticmethod
