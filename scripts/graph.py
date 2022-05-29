@@ -2,6 +2,7 @@ from typing import List, Dict, Set, Tuple
 from bisect import bisect_right
 from datetime import datetime
 from scipy.stats import expon
+from trip import Trip
 
 
 class Node:
@@ -280,21 +281,3 @@ class RealSolution:
     @staticmethod
     def _convert_time_to_rw(time, target_arr_time) -> datetime:
         return datetime.fromtimestamp(target_arr_time - time)
-
-
-class Trip:
-    def __init__(self, station_dep, station_arr, trans_type, duration, route_name, dep_time, n_stops_crossed):
-        self.station_dep: Node = station_dep
-        self.station_arr: Node = station_arr
-        self.trans_type: str = trans_type
-        self.duration: int = duration  # In seconds
-        self.route_name: str = route_name
-        self.dep_time: datetime = dep_time
-        self.n_stops_crossed: int = n_stops_crossed
-#         raise TypeError("We should import trip type from frontend, this is just temporary to avoid pycharm warnings")
-
-    def __str__(self):
-        raise TypeError("We should import trip type from frontend, this is just temporary to avoid pycharm warnings")
-
-    def to_html(self):
-        raise TypeError("We should import trip type from frontend, this is just temporary to avoid pycharm warnings")
