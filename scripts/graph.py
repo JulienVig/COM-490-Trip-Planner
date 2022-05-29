@@ -85,12 +85,8 @@ class RouteStop(Stop):
 
 
 class RouteStopArr(RouteStop):
-<<<<<<< HEAD
-    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time, rw_prev_stop=None):
-=======
-    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time,
-                 rw_prev_stop):
->>>>>>> hugo_tests
+    def __init__(self, node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time, 
+                 rw_prev_stop=None):
         super().__init__(node_id, stop_name, station, idx_on_route, route_name, transport_type, travel_time)
         self.rw_prev_stop: RouteStopDep = rw_prev_stop
     
