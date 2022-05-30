@@ -3,7 +3,7 @@
 
 import sys
 sys.path.insert(1, '../scripts/')
-from graph import Trip, RealSolution, Station, RouteStop, WalkingStop, Timetable
+from graph import RealSolution, Station, RouteStop, WalkingStop, Timetable
 from frontend_utils import visualize_path, get_widgets
 from denver import Denver
 from datetime import datetime

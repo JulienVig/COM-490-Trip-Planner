@@ -3,7 +3,8 @@ import time
 import plotly.graph_objects as go
 from graph  import RealSolution, Timetable
 from datetime import datetime, timedelta
-    
+from trip import strfdelta
+
 import ipywidgets as widgets
 import pandas as pd
 import datetime
@@ -11,6 +12,7 @@ from denver import Denver
 
 def prettify_seconds(seconds):
     return time.strftime('%H:%M:%S', time.gmtime(seconds))
+
 
 
 # format with station dep name, station arr name, total time (nice string), walk time (nice string), success proba, transfers
@@ -41,11 +43,11 @@ CSS_WIDGET = """
 .stop {
   padding:0px;
   margin:0px;
-  font: 14px/1.5 Georgia, Times New Roman, sans-serif;
+  font: 14px/1.5 Helvetica, Times New Roman, sans-serif;
 }
 .myheader p  {
   margin: 0;
-  font: 14px/1.5 Georgia, Times New Roman, sans-serif;
+  font: 14px/1.5 Helvetica, Times New Roman, sans-serif;
 }
 .myli, .myheader {
   overflow: auto;
@@ -76,7 +78,6 @@ def visualize_path(solution: RealSolution, html_widget):
     trips = solution.trips
     
     for idx, trip in enumerate(trips):
-        print(type(trip.station_dep))
         station0, station1, lon_0, lat_0, lon_1, lat_1, ttype, time = \
         trip.station_dep, trip.station_arr, trip.station_dep.longitude, trip.station_dep.latitude,\
         trip.station_arr.longitude, trip.station_arr.latitude, trip.trans_type, trip.duration
@@ -125,7 +126,7 @@ def visualize_path(solution: RealSolution, html_widget):
     
     total_time = (trips[-1].dep_time++timedelta(seconds=trips[-1].duration))-trips[0].dep_time
     
-    html_out = '<ul class="myul">'+HTML_HEADER.format(trips[0].station_dep.station_name, trips[-1].station_arr.station_name, total_time, solution.walking_time, str(round(solution.confidence, 3)*100)+"%", solution.n_transfers)
+    html_out = '<ul class="myul">'+HTML_HEADER.format(trips[0].station_dep.station_name, trips[-1].station_arr.station_name, strfdelta(total_time), strfdelta(timedelta(seconds=solution.walking_time)), str(round(solution.confidence, 3)*100)+"%", solution.n_transfers)
     for trip in trips:
         html_out+=trip.to_html()
         
@@ -136,14 +137,13 @@ def visualize_path(solution: RealSolution, html_widget):
     fig.show()
 
 def get_widgets(stations, table_dict):
-    print(1)
     station_names = list(stations.keys())
     
     
     output = widgets.Output()
-    start=widgets.Combobox(options=station_names, value=station_names[0], placeholder= 'Type the station name')
+    start=widgets.Combobox(options=station_names, value=station_names[-2], placeholder= 'Type the station name')
 
-    end=widgets.Combobox(options=station_names, value=station_names[1], placeholder= 'Type the station name')
+    end=widgets.Combobox(options=station_names, value=station_names[-1], placeholder= 'Type the station name')
 
     proba_slider=widgets.FloatSlider(
         continuous_update=False,
@@ -174,7 +174,6 @@ def get_widgets(stations, table_dict):
         description='Minute:',
         disabled=False
     )
-    print(2)
 
     html_output = widgets.HTML(value="Fill the fields and click on <b>Run</b> to plan your trip !")
     #initalize button
@@ -212,11 +211,8 @@ def get_widgets(stations, table_dict):
 
             #solutions = mock_solutions
             n_paths = len(solutions)
-            if n_paths==1: print('An optimal path found!')
-            else: print('{} optimal paths are found!'.format(n_paths))
 
             for i,solution in enumerate(solutions[:1]):
-                print('\n\nDisplaying solution #', i+1)
                 visualize_path(solution, html_output)
 
 
@@ -224,6 +220,7 @@ def get_widgets(stations, table_dict):
 
     #group all widget
     widget_by_row =[widgets.HBox([widgets.Label("Min Confidence Level"), proba_slider]),
+                    widgets.Label("Double click to display all stations"),
                     widgets.HBox([widgets.Label("Starting station"), start]),
                     widgets.HBox([widgets.Label("Ending station"), end]),
                     date_picker,
