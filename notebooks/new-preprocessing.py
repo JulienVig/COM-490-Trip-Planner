@@ -62,10 +62,7 @@ get_ipython().run_line_magic(
 # sel_stops = spark.read.csv("/user/benhaim/final-project/stop_ids_in_radius.csv")
 # sel_stops = sel_stops.withColumnRenamed("_c0", "stop_id")
 # sel_stops.show(5)
-# + language="spark"
-# sel_stops.count()
 # -
-
 # ## Stop times
 
 # + language="spark"
@@ -76,18 +73,19 @@ get_ipython().run_line_magic(
 # ### Stop times at relevant date
 
 # + language="spark"
-# stoptimes = stoptimes.filter("year == 2020").filter("month == 5").filter("day == 13")
+# relevant_stoptimes = stoptimes.filter("year == 2020").filter("month == 5").filter("day == 13")
 # -
 
 # ### Stop times in radius
 
 # + language="spark"
-# stoptimes = stoptimes.join(sel_stops, on="stop_id",how="inner")
-# print(stoptimes.count())
-# stoptimes.show()
-
-# + language="spark"
-# stoptimes.groupBy("trip_id").count().show()
+# close_stoptimes = relevant_stoptimes.join(sel_stops, on="stop_id",how="inner")
+#
+# close_stoptimes = close_stoptimes.withColumn("arrival_time_complete", \
+#                          concat(col("year"), lit("/"), col("month"), lit("/"), col("day"), lit(" "), col("arrival_time")))
+# close_stoptimes = close_stoptimes.withColumn('arrival_time', unix_timestamp('arrival_time_complete', "yyyy/MM/dd HH:mm:ss")).dropna()
+# close_stoptimes = close_stoptimes.cache()
+# close_stoptimes.printSchema()
 # -
 
 # # TODO check mean of count() which is the mean number of stops for one trip
@@ -103,30 +101,16 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # ispairunique = trips.select("route_id", "trip_id")
-# ispairunique.count()
-
-# + language="spark"
-# ispairunique.dropDuplicates().count()
+# print(ispairunique.count() == ispairunique.dropDuplicates().count())
 # -
 
 # ### Merging trips and stop_times
 
 # + language="spark"
-# stoptimes = stoptimes.select("trip_id", "stop_id", "arrival_time", "stop_sequence")
-# trips_stop_times = trips.select("route_id", "trip_id", "trip_headsign").join(stoptimes, on="trip_id",how="inner")
-# trips_stop_times.count()
-
-# + language="spark"
-# trips_stop_times.show(5)
-# -
-
-#
-
-# ### Buidling `route_stop_id`s
-
-# + language="spark"
+# selected_stoptimes = close_stoptimes.select("trip_id", "stop_id", "arrival_time", "stop_sequence")
+# trips_stop_times = trips.select("route_id", "trip_id", "trip_headsign").join(selected_stoptimes, on="trip_id",how="inner")
 # trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
-# trips_stop_times.show(5)
+# trips_stop_times.count()
 # -
 
 # ### Building time tables
@@ -135,7 +119,7 @@ get_ipython().run_line_magic(
 # timetable = trips_stop_times.select(["route_stop_id", "arrival_time"])
 
 # + language="spark"
-# write_hdfs(timetable, "timetableRefac")
+# write_hdfs(timetable, "timetableRefacFinal")
 # -
 
 # ### Building Route stops
@@ -143,20 +127,20 @@ get_ipython().run_line_magic(
 # + language="spark"
 #
 # max_stop_times = trips_stop_times.sort(F.desc("stop_sequence")).dropDuplicates(["route_id"])
-# max_stop_times = max_stop_times.select("trip_id")
+# max_stop_times = max_stop_times.select('trip_id')
 # max_stop_times.show(5)
+# max_stop_times.count()
 
 # + language="spark"
 # actual_routes = trips_stop_times.join(max_stop_times, "trip_id", "inner")
-# actual_routes.show(5)
-
-# + language="spark"
 # actual_routes.count()
 
 # + language="spark"
 #
-# w = Window.partitionBy("route_id").orderBy(col("stop_sequence"))
+# w = Window.partitionBy("route_id").orderBy(col("stop_sequence").desc())
 # route_stops = actual_routes.withColumn("actual_stop_seq", F.row_number().over(w)).drop("trip_id", "stop_sequence")
+# print(actual_routes.count())
+# print(route_stops.count())
 #
 # prevs = route_stops.drop("trip_headsign", "stop_id")\
 #                   .withColumnRenamed("actual_stop_seq", "prev_stop_seq")\
@@ -164,34 +148,36 @@ get_ipython().run_line_magic(
 #                   .withColumnRenamed("arrival_time", "prev_arrival_time")\
 #                   .withColumnRenamed("route_id", "prev_route_id")                    
 #
-# route_stops = route_stops.withColumn("matching_stop_seq", col("actual_stop_seq") - 1)
+# route_stops = route_stops.withColumn("matching_stop_seq", col("actual_stop_seq") + 1)
 #
 # route_stops = route_stops.join(prevs, (prevs.prev_stop_seq == route_stops.matching_stop_seq) \
 #                                       & (prevs.prev_route_id == route_stops.route_id), "leftouter")\
 #                          .cache()
+# print(route_stops.count())
 
 # + language="spark"
-# route_stops.show(5)
-
-# + language="spark"
-# count_nan_null(route_stops)
-
-# + language="spark"
-#
-# route_stops = route_stops.withColumn('unix_arrival_time', unix_timestamp('arrival_time', "HH:mm:ss"))
-# route_stops = route_stops.withColumn('unix_prev_arrival_time', unix_timestamp('prev_arrival_time', "HH:mm:ss"))
-#
-# route_stops = route_stops.withColumn("travel_time", col("arrival_time") - col("prev_arrival_time"))\
+# complete_route_stops = route_stops.withColumn("travel_time", col("arrival_time") - col("prev_arrival_time"))\
+#                         .drop("prev_stop_seq", "prev_arrival_time", "arrival_time", 'matching_stop_seq', 'prev_route_id')\
 #                         .cache()
-#                          #.drop("prev_stop_seq", "prev_arrival_time", "arrival_time")\
-#                          
+# complete_route_stops.show(5)
 
 # + language="spark"
-# count_nan_null(route_stops)
-
-# + language="spark"
+# routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name')
+# final_complete_route_stops = complete_route_stops.join(routes_orc, 'route_id', 'inner')\
+#                                                 .drop('route_id')\
+#                                                 .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner')
 #
-# route_stops.show()
+# final_complete_route_stops.show(5)
+# -
+
+# # Stations
 
 # + language="spark"
-#
+# final_stations = final_complete_route_stops.groupby('stop_id')\
+#     .agg(
+#         F.collect_set(col('route_stop_id')).alias('route_stops')
+#     ).join(stations, 'stop_id', 'inner').drop('location_type', 'parent_station')
+# final_stations.show(5, False)
+# -
+
+

@@ -33,7 +33,7 @@ class Node:
 
 
 class Station(Node):
-    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=None, stops_arr=None):
+    def __init__(self, node_id, station_name: str, latitude: float, longitude: float):
         super().__init__(node_id)
         self.station_name = station_name
         self.stops: List[Stop] = []
