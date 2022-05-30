@@ -36,7 +36,7 @@ get_ipython().run_line_magic(
 #
 #
 # def write_hdfs(df, dirname):
-#     df.coalesce(1).write.format("com.databricks.spark.csv")\
+#     df.coalesce(1).write.format("com.databricks.spark.csv").mode('overwrite')\
 #    .option("header", "true").save(REMOTE_PATH + dirname)
 
 # + language="spark"
@@ -83,12 +83,19 @@ get_ipython().run_line_magic(
 #
 # close_stoptimes = close_stoptimes.withColumn("arrival_time_complete", \
 #                          concat(col("year"), lit("/"), col("month"), lit("/"), col("day"), lit(" "), col("arrival_time")))
-# close_stoptimes = close_stoptimes.withColumn('arrival_time', unix_timestamp('arrival_time_complete', "yyyy/MM/dd HH:mm:ss")).dropna()
+# # drop hours above 24
+# close_stoptimes = close_stoptimes.withColumn('arrival_time', 
+#                                              unix_timestamp('arrival_time_complete', "yyyy/MM/dd HH:mm:ss")).dropna()
 # close_stoptimes = close_stoptimes.cache()
 # close_stoptimes.printSchema()
 # -
 
-# # TODO check mean of count() which is the mean number of stops for one trip
+# As we can see, in a single day arrival times are duplicated for each stop_id, we will therefore drop them
+
+# + language="spark"
+# print(relevant_stoptimes.count())
+# relevant_stoptimes.dropDuplicates(['stop_id','arrival_time' ]).count()
+# -
 
 # ## Trips
 
@@ -107,16 +114,51 @@ get_ipython().run_line_magic(
 # ### Merging trips and stop_times
 
 # + language="spark"
-# selected_stoptimes = close_stoptimes.select("trip_id", "stop_id", "arrival_time", "stop_sequence")
+# selected_stoptimes = close_stoptimes.select("trip_id", "stop_id", "departure_time", "arrival_time", "stop_sequence")
 # trips_stop_times = trips.select("route_id", "trip_id", "trip_headsign").join(selected_stoptimes, on="trip_id",how="inner")
-# trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
+# #trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
 # trips_stop_times.count()
 # -
 
-# ### Building time tables
+# Some routes loop over the same stops, therefore we add the occurence index in the stop id for each trip to create
+# trip_stop_id and route_stop_id.
 
 # + language="spark"
-# timetable = trips_stop_times.select(["route_stop_id", "arrival_time"])
+# w = Window.partitionBy(['trip_id', 'stop_id']).orderBy(col("arrival_time").desc())
+# stop_times_ranked = trips_stop_times.withColumn("trip_stop_index", F.row_number().over(w))\
+#                         .withColumn("trip_stop_id", concat(col("stop_id"), lit("*"), col("trip_stop_index")))\
+#                         .withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("trip_stop_id")))
+# stop_times_ranked.count()
+
+# + language="spark"
+# ispairunique = stop_times_ranked.select("trip_stop_id", "trip_id")
+# print(ispairunique.count() == ispairunique.dropDuplicates().count())
+
+# + magic_args="   " language="spark"
+# cols = ["route_stop_id", "arrival_time"]
+# duplicates = stop_times_ranked.join(
+#     stop_times_ranked.groupBy(cols).agg((F.count("*")>1).cast("int").alias("Duplicate_indicator")),
+#     on=cols,
+#     how="inner"
+# ).cache()
+
+# + language="spark"
+# duplicates.filter(col("Duplicate_indicator") > 0).count()
+
+# + language="spark"
+# routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name')
+#
+# duplicates.filter(col("Duplicate_indicator") > 0).join(routes_orc, 'route_id', 'inner')\
+#             .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner').orderBy(cols).show()
+# -
+
+# ### Building time tables
+#
+# We drop duplicated arrival times for the same (route, stop)
+
+# + language="spark"
+# timetable = stop_times_ranked.select(["route_stop_id", "arrival_time"])\
+#                     .dropDuplicates(["route_stop_id", "arrival_time"]).cache()
 
 # + language="spark"
 # write_hdfs(timetable, "timetableRefacFinal")
