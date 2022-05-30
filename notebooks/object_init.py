@@ -125,6 +125,8 @@ station_df.head(1)
 
 # # init routestops
 
+routes
+
 routes = pd.read_csv(join(DATA,'route_names_types.csv'), index_col=0)
 arrivals = pd.read_csv(join(DATA, 'arrivals_ttn.csv'), index_col=0).merge(routes, on='route_id')
 departure = pd.read_csv(join(DATA, 'departures_ttn.csv'), index_col=0).merge(routes, on='route_id')

@@ -14,7 +14,7 @@ class Denver:
         self.multiple_sols = multiple_sols
 
     # prefix g_ is for reversed graph, prefix i_ is for input values
-    def denver(self, blacklisted_route: str = "") -> List[RealSolution]:
+    def run(self, blacklisted_route: str = "") -> List[RealSolution]:
         marks = Marks(blacklisted_route, FIRST_STATION_TS)
         self.init_first_station(self.g_start, marks, self.timetable)
         while not marks.empty():
