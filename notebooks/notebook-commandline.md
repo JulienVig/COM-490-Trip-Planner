@@ -151,7 +151,11 @@ hdfs dfs -get /group/abiskop1/project_data/departures_ttn.csv ../data/departures
 ```
 
 ```bash
+hdfs dfs -get /group/abiskop1/project_data/timetableRefacFinal ../new_data/timetableRefacFinal
+```
 
+```bash
+hdfs dfs -get /group/abiskop1/project_data/stations ../data/stations
 ```
 
 ```bash

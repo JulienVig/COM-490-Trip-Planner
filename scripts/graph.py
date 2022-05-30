@@ -80,6 +80,9 @@ class RouteStop(Stop):
         self.travel_time: int = travel_time
         self.rw_prev_stop: 'RouteStop' = rw_prev_stop
         self.headsign: str = headsign
+            
+    def set_prev_stop(self, rw_prev_stop: 'RouteStop'):
+        self.rw_prev_stop = rw_prev_stop
 
 
 class WalkingStop(Stop):

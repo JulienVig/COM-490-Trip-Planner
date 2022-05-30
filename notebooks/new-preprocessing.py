@@ -182,13 +182,6 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 #
-# max_stop_times = trips_stop_times.sort(F.desc("clean_stop_seq")).dropDuplicates(["route_id"])
-# max_stop_times = max_stop_times.select(['trip_id', 'clean_stop_seq'])
-# max_stop_times.show(5)
-# max_stop_times.count()
-
-# + language="spark"
-#
 # window = Window.partitionBy("trip_id").orderBy(col("clean_stop_seq").desc())
 #
 # max_stop_times = stop_times_ranked.withColumn("row",F.row_number().over(window)) \
@@ -245,7 +238,7 @@ get_ipython().run_line_magic(
 #                                                 .drop('route_id')\
 #                                                 .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner')
 #
-# final_complete_route_stops.show(5)
+# final_complete_route_stops.select('route_desc').show(5)
 
 # + language="spark"
 # print(final_complete_route_stops.count())
@@ -253,6 +246,9 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # write_hdfs(final_complete_route_stops, "routestops")
+
+# + language="spark"
+# count_nan_null(final_complete_route_stops)
 # -
 
 # # Stations
@@ -262,9 +258,10 @@ get_ipython().run_line_magic(
 #                 .agg(F.collect_list(col('route_stop_id')).alias('route_stops'))\
 #                 .join(stations, 'stop_id', 'inner').drop('location_type', 'parent_station').cache()
 # final_stations.show(5, False)
-# + language="spark"
-# write_hdfs(final_complete_route_stops, "stations")
+# + magic_args="-o  final_stations" language="spark"
+# final_stations.count()
 # -
 
+final_stations.to_csv('../data/stations.csv', index=False)
 
 
