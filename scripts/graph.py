@@ -3,6 +3,7 @@ from bisect import bisect_right
 from datetime import datetime, timedelta
 import numpy as np
 
+BASELINE_TS = 1589320800
 
 class Node:
     def __init__(self, node_id):
@@ -34,6 +35,7 @@ class Node:
 class Station(Node):
     def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops = None):
         super().__init__(node_id)
+        assert node_id != station_name
         self.station_name = station_name
         self.stops: List[Stop] = stops if stops is not None else []
         self.latitude = latitude
@@ -57,12 +59,6 @@ class Station(Node):
     def __str__(self):
         return self.station_name
 
-    def __eq__(self, other: 'Station'):
-        return self.station_name == other.station_name
-
-    def __hash__(self):
-        return hash(self.station_name)
-
 
 # abstract
 class Stop(Node):
@@ -76,13 +72,14 @@ class Stop(Node):
 
 class RouteStop(Stop):
     def __init__(self, node_id, stop_name: str, station: Station, idx_on_route, route_name: str, transport_type: str,
-                 travel_time: int, rw_prev_stop: 'RouteStop'):
+                 travel_time: int, rw_prev_stop: 'RouteStop', headsign: str):
         super().__init__(node_id, stop_name, station)
         self.idx_on_route: int = idx_on_route
         self.route_name: str = route_name
         self.transport_type: str = transport_type
         self.travel_time: int = travel_time
         self.rw_prev_stop: 'RouteStop' = rw_prev_stop
+        self.headsign: str = headsign
 
 
 class WalkingStop(Stop):
@@ -134,12 +131,14 @@ class Marks:
 
 
 class Timetable:
-    def __init__(self, table, threshold, target_arr_time):
+    def __init__(self, table, threshold: int, target_arr_time: datetime):
         # key is RouteStopDep.stop_name, value is (List[arrival_times], List[delay distributions])
         self.table: Dict[RouteStop, List[int]] = table  # timestamps are ascending in rw
-        self.target_arr_time: int = target_arr_time
+        self.target_arr_time: int = BASELINE_TS + (target_arr_time.hour * 60 + target_arr_time.minute) * 60 +\
+                                        target_arr_time.second
         self.threshold: int = threshold
-        self.AVG_NB_OF_TRANSFER = 5
+        self.AVG_NB_OF_TRANSFER = 3
+        
 
     def set_target_time(self, target_arr_time):
         self.target_arr_time = target_arr_time

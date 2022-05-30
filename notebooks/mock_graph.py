@@ -8,6 +8,7 @@ import pandas as pd
 import math
 import numpy as np
 from collections import defaultdict
+from datetime import datetime
 
 DATA = '../data/'
 
@@ -22,7 +23,7 @@ N_ROUTE = 3000
 MAX_ROUTE_LEN = 15
 TRANSPORT_TYPES = ['Train', 'Bus', 'Tram', 'unknown']
 
-square_ratio = 4 # number of max station per km
+square_ratio = 10 # number of max station per km
 array_size = SIZE * square_ratio # stations can be as close as 250m
 SQUARE_TO_METER = 1000 / float(square_ratio) # distance between each square of the grid
 N_STATION_RANGE = 6 
@@ -99,7 +100,7 @@ while n_station_created < N_STATIONS: # create stations at random coord
         station_name = f"station_{n_station_created}"
         lat = MAX_LAT * x / array_size
         lon = MAX_LON * y / array_size
-        station_locations[(x,y)] = Station(station_name, station_name, lat, lon)
+        station_locations[(x,y)] = Station(station_name + '_id', station_name, lat, lon)
         n_station_created += 1
 
 """ Create routes and routestops """
@@ -127,7 +128,7 @@ while n_route_created < N_ROUTE: # Create routes starting at random station
             travel_time = int(np.sqrt((prev_x - x)**2 + (prev_y - y)**2) * TRAVEL_SPEED * SQUARE_TO_METER)
         station = station_locations[x,y]
         curr_stop = RouteStop(stop_name, stop_name, station, n_stop, route_name, 
-                              transport_type, travel_time, prev_stop)
+                              transport_type, travel_time, prev_stop, 'headsign')
         station.add_stop(curr_stop)
         routes[route_name].append((x, y, curr_stop))
         route_stops.append(curr_stop)
@@ -235,13 +236,11 @@ for r in route_stops:
     if r.rw_prev_stop is not None:
         G.add_edge(r.station.station_name, r.rw_prev_stop.station.station_name)
 
-
-
 # # Running Denver
 
-target_arrival_ts = 1589389200 # 5pm
+target_arrival_time = datetime.now() # 5pm
 threshold = 0
-timetable = Timetable(table, threshold, target_arrival_ts)
+timetable = Timetable(table, threshold, target_arrival_time)
 
 np.random.seed(48)
 station_start, station_end = np.random.choice(list(station_locations.values()), size=2)
@@ -254,12 +253,11 @@ station_start, station_end = np.random.choice(list(station_locations.values()), 
 print("Start:", station_start, "End:", station_end)
 print()
 
-denver = Denver(threshold, station_end, station_start, timetable, False, target_arrival_ts)
+denver = Denver(threshold, station_end, station_start, timetable, False)
 # %time sols = denver.run()
 print()
 if len(sols):
     print(sols[0])
-    print("NetworkX shortest path:",nx.shortest_path(G, station_start.station_name, station_end.station_name))
 else:
     print("No solutions found")
     print("NetworkX path exists:", nx.has_path(G, station_start.station_name, station_end.station_name))

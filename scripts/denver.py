@@ -1,5 +1,6 @@
 from graph import Station, Timetable, RealSolution, Marks, RouteStop, WalkingStop, Node
 from typing import List
+from datetime import datetime
 
 TRANSFER_TIME = 120  # 2 minutes
 FIRST_STATION_TS = 0  # Chosen timestamp of the first station in graph (and last in real world)
@@ -7,7 +8,8 @@ FIRST_STATION_TS = 0  # Chosen timestamp of the first station in graph (and last
 
 class Denver:
     def __init__(self, threshold: float, g_start: Station, g_end: Station,
-                 timetable: Timetable, multiple_sols: bool, target_arr_time: int):
+                 timetable: Timetable, multiple_sols: bool):
+        
         self.g_start = g_start
         self.g_end = g_end
         self.timetable = timetable
