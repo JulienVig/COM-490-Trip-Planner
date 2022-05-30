@@ -60,7 +60,7 @@ def strfdelta(tdelta, fmt='{D:02}d {H:02}h {M:02}m {S:02}s', inputtype='timedelt
     for field in possible_fields:
         if field in desired_fields and field in constants:
             obtained_value, remainder = divmod(remainder, constants[field])
-            if (obtained_value > 0) and not found_one:
+            if (obtained_value > 0) or found_one:
                 found_one = True
                 values[field] = obtained_value
     return f.format(fmt, **values)

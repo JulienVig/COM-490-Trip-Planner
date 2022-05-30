@@ -198,15 +198,13 @@ def get_widgets(stations, table_dict):
 
         arrival_time=pd.to_datetime("%02d:%02d:00"%(hour.value,minute.value))
 
-
         with output:
-
-
             multiple_sols = False
             target_arr_time = 10000
             #Reverse start and arrival here because Tenet
-            table = Timetable(table_dict, confidence, target_arr_time)
-            denver = Denver(confidence, arrival_station, starting_station, table, multiple_sols, target_arr_time)
+            print("looking for confidence",confidence)
+            table = Timetable(table_dict, confidence, arrival_time)
+            denver = Denver(confidence, arrival_station, starting_station, table, multiple_sols)
             solutions = denver.run()
 
             #solutions = mock_solutions

@@ -188,7 +188,7 @@ class Timetable:
         return new_acc_success, is_safe
 
     def get_stop_arrival_time(self, stop: RouteStop, idx: int) -> int:
-        return self.table[stop][0][idx]
+        return self.table[stop][idx]
 
 
 class RealSolution:

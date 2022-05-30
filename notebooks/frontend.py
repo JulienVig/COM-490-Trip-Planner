@@ -7,6 +7,7 @@ from graph import RealSolution, Station, RouteStop, WalkingStop, Timetable
 from frontend_utils import visualize_path, get_widgets
 from denver import Denver
 from datetime import datetime
+from graph_init import init_graph
 
 
 def create_graph():
@@ -67,7 +68,7 @@ def create_graph():
 #table = Timetable(table_dict, threshold, target_arr_time)
 # -
 
-stations, table_dict = create_graph()
+stations, _, _, table_dict = init_graph()
 
 all_widget_in_one, output = get_widgets(stations, table_dict)
 
