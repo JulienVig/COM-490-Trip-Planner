@@ -33,10 +33,10 @@ class Node:
 
 
 class Station(Node):
-    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops_dep=None, stops_arr=None):
+    def __init__(self, node_id, station_name: str, latitude: float, longitude: float, stops=None):
         super().__init__(node_id)
         self.station_name = station_name
-        self.stops: List[Stop] = []
+        self.stops: List[Stop] = stops if stops is not None else []
         self.latitude = latitude
         self.longitude = longitude
         self.delays: Dict[str, np.array] = {'Bus': np.ones(24)*100, 'Tram': np.ones(24)*100,
@@ -89,7 +89,7 @@ class RouteStop(Stop):
 class WalkingStop(Stop):
     def __init__(self, node_id, stop_name, station, neighbors=None):
         super().__init__(node_id, stop_name, station)
-        self.neighbors: List[Tuple[WalkingStop, int]] = neighbors
+        self.neighbors: List[Tuple[WalkingStop, int]] = neighbors if neighbors is not None else []
 
     def set_neighbors(self, neighbors: List[Tuple['WalkingStop', int]]) -> None:
         self.neighbors = neighbors
@@ -250,9 +250,6 @@ class RealSolution:
                 success_probas.append(proba)
                 confidence *= proba
 
-            else:
-                raise TypeError(f"{type(prev_node)} followed by {type(n)}")
-
             prev_node = n
 
         success_probas.pop()
@@ -264,8 +261,6 @@ class RealSolution:
         for t in self.trips:
             strings.append(f"{t.station_dep} to {t.station_arr}\n")
 
-        for succ_proba in self.success_probas:
-            strings.append(f"{succ_proba}\n")
         return ''.join(strings)
 
     @staticmethod

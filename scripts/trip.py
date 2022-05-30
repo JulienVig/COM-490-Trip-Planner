@@ -1,5 +1,9 @@
 from datetime import datetime, timedelta
 
+import time
+def pretify_seconds(seconds):
+    return time.strftime('%H:%M:%S', time.gmtime(seconds))
+
 class Trip:
     def __init__(self, station_dep, station_arr, trans_type, duration, route_name, dep_time, n_stops_crossed):
         self.station_dep: "Node" = station_dep
