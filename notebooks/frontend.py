@@ -4,7 +4,7 @@
 import sys
 sys.path.insert(1, '../scripts/')
 from graph import Trip, RealSolution, Station, RouteStop, WalkingStop, Timetable
-from frontend_utils import HTML_HEADER,HTML_TRIP, CSS_WIDGET, visualize_path, get_widgets
+from frontend_utils import visualize_path, get_widgets
 from denver import Denver
 from datetime import datetime
 
@@ -14,9 +14,13 @@ def create_graph():
     station_B = Station("B_node", "B", 47.32612, 8.56621)
     station_C = Station("C_node", "C", 47.33312, 8.51421)
     station_G = Station("G_node", "G", 47.33812, 8.51221)
-    station_H = Station("H_node", "H", 47.34712, 8.53521)
-    station_I = Station("I_node", "I", 47.34412, 8.53221)
-    station_Y = Station("Y_node", "Y", 47.33912, 8.54121)
+    station_H = Station("H_node", "Zurich, RatHaus", 47.34712, 8.53521)
+    station_I = Station("I_node", "Zurich, HB", 47.34412, 8.53221)
+    station_Y = Station("Y_node", "Zug, HB", 47.33912, 8.54121)
+    
+    #station_H = Station("H_node", "H", 47.34712, 8.53521)
+    #station_I = Station("I_node", "I", 47.34412, 8.53221)
+    #station_Y = Station("Y_node", "Y", 47.33912, 8.54121)
 
     travel_times = 200
 

@@ -3,7 +3,6 @@ import time
 import plotly.graph_objects as go
 from graph  import RealSolution, Timetable
 from datetime import datetime, timedelta
-   
     
 import ipywidgets as widgets
 import pandas as pd
@@ -22,23 +21,6 @@ HTML_HEADER = """
     <p>Success probability : <b>{}</b></p>
     <p>Transfers : <b>{}</b></p>
 </li>
-"""
-# format with trans type, line number, dep station name, arr station name, dep time, arr time, #stops, duration (nice string)
-HTML_TRIP = """
-<li class="myli">
-  <h3 class="myh3">{} {}</h3>
-  <div class="stops">
-    <p class="stop">{}</p>
-    <p class="stop">=================></p>
-    <p class="stop">{}</p>
-  </div>
-  <div class="stops">
-    <p class="stop">{}</p>
-    <p class="stop">{}</p>
-  </div>
-  <p>Trip duration : {} stops ({}) </p>
-</li>
-
 """
 
 
@@ -143,9 +125,9 @@ def visualize_path(solution: RealSolution, html_widget):
     
     total_time = (trips[-1].dep_time++timedelta(seconds=trips[-1].duration))-trips[0].dep_time
     
-    html_out = '<ul class="myul">'+HTML_HEADER.format(trips[0].station_dep.station_name, trips[-1].station_arr.station_name, total_time, solution.walking_time, solution.confidence, solution.n_transfers)
+    html_out = '<ul class="myul">'+HTML_HEADER.format(trips[0].station_dep.station_name, trips[-1].station_arr.station_name, total_time, solution.walking_time, str(round(solution.confidence, 3)*100)+"%", solution.n_transfers)
     for trip in trips:
-        html_out+=trip.to_html(HTML_TRIP)
+        html_out+=trip.to_html()
         
     html_out = html_out+"</ul>"
     
@@ -159,9 +141,9 @@ def get_widgets(stations, table_dict):
     
     
     output = widgets.Output()
-    start=widgets.Dropdown(options=station_names, value='I')
+    start=widgets.Combobox(options=station_names, value=station_names[0], placeholder= 'Type the station name')
 
-    end=widgets.Dropdown(options=station_names, value='Y')
+    end=widgets.Combobox(options=station_names, value=station_names[1], placeholder= 'Type the station name')
 
     proba_slider=widgets.FloatSlider(
         continuous_update=False,
@@ -224,7 +206,7 @@ def get_widgets(stations, table_dict):
             multiple_sols = False
             target_arr_time = 10000
             #Reverse start and arrival here because Tenet
-            table = Timetable(table_dict, threshold, target_arr_time)
+            table = Timetable(table_dict, confidence, target_arr_time)
             denver = Denver(confidence, arrival_station, starting_station, table, multiple_sols, target_arr_time)
             solutions = denver.run()
 
@@ -245,6 +227,7 @@ def get_widgets(stations, table_dict):
                     widgets.HBox([widgets.Label("Starting station"), start]),
                     widgets.HBox([widgets.Label("Ending station"), end]),
                     date_picker,
+                    widgets.Label("Target arrival time : "),
                     hour,
                     minute,
                     button,
