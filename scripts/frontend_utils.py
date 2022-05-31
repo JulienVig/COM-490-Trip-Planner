@@ -196,7 +196,7 @@ CSS_WIDGET = """
 <style>
 .myul {
   list-style-type: none;
-  width: 500px;
+  width: 600px;
 }
 .myh3 {
   font: bold 20px/1.7 Helvetica, Verdana, sans-serif;
