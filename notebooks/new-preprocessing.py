@@ -1,4 +1,8 @@
-# ### New preprocessing
+# # Preprocessing notebook
+#
+# In this notebook we transform the initial raw data into tables that can be loaded easily into the object usable by **Denver**. We need to gather and keep only the information needed for the object defined in [the graph implementation](../scripts/graph.py).
+#
+# ## Spark Session and utils
 
 import os
 # %load_ext sparkmagic.magics
@@ -22,6 +26,7 @@ get_ipython().run_line_magic(
 # import pyspark.sql.functions as F
 # from pyspark.sql.types import ArrayType, StringType, IntegerType
 # from pyspark.sql.window import Window
+# from math import sin, cos, sqrt, atan2, radians
 # REMOTE_PATH = "/group/abiskop1/project_data/"
 
 # + language="spark"
@@ -43,7 +48,126 @@ get_ipython().run_line_magic(
 # spark.conf.set("spark.sql.session.timeZone", "UTC+2")
 # -
 
-# ## Loading selected stations (Stops)
+# ## Location filtering
+#
+# The graph only focuses on a **15 km radius** circle centered in Zurich HB. We thus load the initial locations of stops in the entire Switzerland and select only those lying in this circle.
+
+# + language="spark"
+# stops = spark.read.csv("/data/sbb/csv/allstops/stop_locations.csv")
+#
+# oldColumns = stops.schema.names
+# newColumns = ["STOP_ID", "STOP_NAME", "STOP_LAT", "STOP_LON", "LOCATION_TYPE", "PARENT_STATION"]
+#
+# stops = reduce(lambda data, idx: data.withColumnRenamed(oldColumns[idx], newColumns[idx]), xrange(len(oldColumns)), stops)
+# stops.printSchema()
+# stops.show()
+
+# + language="spark"
+#
+# @F.udf
+# def distance_gps(coordinate_struct):
+#     """Return the distance between two GPS coordinates in km"""
+#     
+#     # approximate radius of earth in km
+#     R = 6373.0
+#     
+#     lat1=radians(float(coordinate_struct[0]))
+#     lon1=radians(float(coordinate_struct[1]))
+#     lat2=radians(float(coordinate_struct[2]))
+#     lon2=radians(float(coordinate_struct[3]))
+#     
+#     dlon = lon2 - lon1
+#     dlat = lat2 - lat1
+#
+#     #StackOverflow : https://stackoverflow.com/a/19412565
+#     a = sin(dlat / 2)**2 + cos(lat1) * cos(lat2) * sin(dlon / 2)**2
+#     c = 2 * atan2(sqrt(a), sqrt(1 - a))
+#
+#     return R * c
+
+# + language="spark"
+# hb_df = stops.filter(stops.STOP_NAME == "Zürich HB")
+# hb_df.show(1)
+
+# + language="spark"
+# ZURICH_HB_LAT = 47.3781762039461
+# ZURICH_HB_LON = 8.54021154209037
+#
+# stops_hb = stops.withColumn('ZHB_LAT', F.lit(ZURICH_HB_LAT))\
+#     .withColumn('ZHB_LON', F.lit(ZURICH_HB_LON))
+#     
+# stops_hb = stops_hb.withColumn('distance_hb',distance_gps(F.struct(stops_hb.STOP_LAT, stops_hb.STOP_LON, stops_hb.ZHB_LAT, stops_hb.ZHB_LON)))
+# -
+
+# Sanity check of the obtained stations :
+
+# + language="spark"
+# stops_hb.sample(0.001).show(10)
+
+# + language="spark"
+# THRESHOLD = 15
+# stops_in_radius = stops_hb.filter(stops_hb.distance_hb<THRESHOLD)
+# stops_in_radius.count()
+# -
+
+# Now that we have the name of every station in the chosen circle, let's filter the matching `stop_id`.
+
+# + magic_args="-o stop_id_in_radius_list" language="spark"
+# stopt = read_orc("stop_times")
+#
+# stoptime_in_radius = stopt.join(stops_in_radius, on="stop_id",how="inner")
+#
+# stop_id_in_radius_list = stops_in_radius.select(stops_in_radius.STOP_ID)
+#
+# -
+
+stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
+
+# ## Walking distances
+# We, then, create the walking paths between stations less than 10mins of walk from each other.
+
+# + language="spark"
+#
+# stopw = stops_in_radius.select(["STOP_ID", "STOP_NAME", "STOP_LAT", "STOP_LON", "PARENT_STATION"])
+#
+# stopw2 = stopw.withColumnRenamed("STOP_ID","STOP_ID_2")\
+#                 .withColumnRenamed("STOP_NAME","STOP_NAME_2")\
+#                 .withColumnRenamed("STOP_LAT","STOP_LAT_2")\
+#                 .withColumnRenamed("STOP_LON","STOP_LON_2")\
+#                 .withColumnRenamed("PARENT_STATION","PARENT_STATION_2")
+# stopw_cross = stopw.crossJoin(stopw2)
+#
+# size = stopw_cross.count()
+# stopw_cross.show(3)
+
+# + magic_args="-o stopw_dist_500m -n -1" language="spark"
+# max_walk_distance_km = 0.5
+# stopw_dist = stopw_cross.withColumn('walk_distance',
+#                                     distance_gps(F.struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, 
+#                                                           stopw_cross.STOP_LAT_2, stopw_cross.STOP_LON_2)))
+# stopw_dist_500m = stopw_dist.filter(stopw_dist.walk_distance <= max_walk_distance_km)\
+#                             .filter(stopw_dist.STOP_NAME != stopw_dist.STOP_NAME_2).cache()
+# stopw_dist_500m.show()
+# -
+
+print(len(stopw_dist_500m),"No duplicate : ",len(stopw_dist_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])))
+# Dropping duplicates
+stopw_dist_500m = stopw_dist_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])
+stopw_dist_500m.head()
+
+# +
+# 50m/ minute walking speed, computing s.m-1
+walk_speed = 60/50
+
+stopw_dist_500m["walk_time"] = stopw_dist_500m["walk_distance"] * walk_speed * 1000
+# -
+
+stopw_dist_500m = stopw_dist_500m[["STOP_NAME", "STOP_NAME_2", "walk_distance", "walk_time"]].copy()
+stopw_dist_500m.to_csv("../data/walking_stops_pairs.csv")
+
+# # Creating the tables necessary to our graph modelisation
+
+# ## Merging stations with same name
 
 # + language="spark"
 #
@@ -59,19 +183,13 @@ get_ipython().run_line_magic(
 #                                         .select(['stop_name', 'stop_id'])
 #
 # stations = stations.withColumnRenamed('stop_id', 'old_stop_id').join(station_id_translation_table, 'stop_name', 'inner')
-# stations.orderBy('stop_name').show(10, False)
-# + language="spark"
-# stations.filter(col('stop_id') == 8579991).show()
-# merged_stoptimes.filter(col('stop_id') == 8579991).show()
 # -
-
 # ## Stops in radius
 
 
 # + language="spark"
-# sel_stops = spark.read.csv("/user/benhaim/final-project/stop_ids_in_radius.csv")
-# sel_stops = sel_stops.withColumnRenamed("_c0", "stop_id")
-# sel_stops.show(5)
+# sel_stops = stop_id_in_radius_list
+# sel_stops = sel_stops.withColumnRenamed("STOP_ID", "stop_id")
 # -
 # ## Stop times
 
@@ -86,7 +204,7 @@ get_ipython().run_line_magic(
 # relevant_stoptimes = stoptimes.filter("year == 2020").filter("month == 5").filter("day == 13")
 # -
 
-# ### Stop times in radius
+# ### Convert times to unix
 
 # + language="spark"
 # close_stoptimes = relevant_stoptimes.join(sel_stops, on="stop_id",how="inner")
@@ -107,9 +225,6 @@ get_ipython().run_line_magic(
 #                                     .join(stations.drop('stop_name', 'stop_lat', 'stop_lon', 'location_type', 'parent_station'), 'old_stop_id')
 # merged_stoptimes.count()
 # -
-
-
-
 # As we can see, in a single day arrival times are duplicated for each stop_id, we will therefore drop them
 
 # + language="spark"
@@ -191,7 +306,7 @@ get_ipython().run_line_magic(
 # timetable.count()
 
 # + language="spark"
-# write_hdfs(timetable, "timetableRefacFinal")
+# #write_hdfs(timetable, "timetableRefacFinal")
 # -
 
 # ### Building Route stops
@@ -263,7 +378,10 @@ get_ipython().run_line_magic(
 # print(complete_route_stops.count())
 
 # + language="spark"
-# write_hdfs(final_complete_route_stops, "routestops")
+# #write_hdfs(final_complete_route_stops, "routestops")
+
+# + language="spark"
+# #write_hdfs(final_complete_route_stops, "routestops")
 
 # + language="spark"
 # count_nan_null(final_complete_route_stops)
@@ -279,8 +397,171 @@ get_ipython().run_line_magic(
 # final_stations.show(5, False)
 # + magic_args="-o  final_stations" language="spark"
 # final_stations.count()
+
+# +
+#final_stations.to_csv('../data/stations.csv', index=False)
 # -
 
-final_stations.to_csv('../data/stations.csv', index=False)
+# ## Delay distributions
+#
+#
+# Now we need to compute the delay distributions. From `istdaten` we select only the relevant stations (i.e. those lying within the chosen circle) and we wille create a table containing tuples of the form `(Station_name, transport_type, delay_distribution)`. We still need to investigate on the model we will chose to represent these distributions.
+
+# + language="spark"
+# ## imports specific to the modeling of the distribution
+# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list, dayofweek, hour, when
+# from pyspark.sql.functions import countDistinct, concat, struct
+# from pyspark.sql.functions import udf, explode, split
+# from pyspark.sql.functions import pandas_udf, PandasUDFType
+# -
+
+from scipy.stats import expon
+import numpy as np
+from scipy.optimize import curve_fit
+from datetime import datetime
 
 
+# + language="spark"
+# real_time = spark.read.orc("/data/sbb/part_orc/istdaten").dropna()
+#
+# arrivals = spark.read.csv(REMOTE_PATH + "routestops", header='true', inferSchema='true')
+# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("*")[0])(F.col("route_stop_id")))
+#
+# print("The Schema is :")
+# real_time
+
+# + language="spark"
+# mapping =    [['BETRIEBSTAG', 'date'],
+#     ['FAHRT_BEZEICHNER', "trip_id"],
+#     ['BETREIBER_ABK', 'operator'],
+#     ["BETREIBER_NAME", "operator_name"],
+#     ["PRODUCT_ID", "type_transport"],
+#     ["LINIEN_ID"," for trains, this is the train number"],
+#     ["LINIEN_TEXT","type_service_1"], 
+#     ["VERKEHRSMITTEL_TEXT","type_service_2"],
+#     ["ZUSATZFAHRT_TF","additional_trip"],
+#     ["FAELLT_AUS_TF","trip_failed"],
+#     ["HALTESTELLEN_NAME","stop_name"],
+#     ["ANKUNFTSZEIT","arrival_time_schedule"],
+#     ["AN_PROGNOSE","arrival_time_actual"],
+#     ["AN_PROGNOSE_STATUS","measure_method_arrival"],
+#     ["ABFAHRTSZEIT","departure_time_schedule"],
+#     ["AB_PROGNOSE","departure_time_actual"],
+#     ["AB_PROGNOSE_STATUS","measure_method_arrival"],
+#     ["DURCHFAHRT_TF","does_stop_here"]]
+#
+#
+# for de_name, en_name in mapping:
+#     real_time = real_time.withColumnRenamed(de_name, en_name)
+#     
+# print("Final Schema :")
+# real_time
+# -
+
+# #### Restricting the station to the selected ones where transports arrive
+
+# + language="spark"
+# stations = arrivals.select("stop_name").dropDuplicates()
+# real_time = real_time.join(stations, "stop_name")
+#
+# # Compute the delay
+# real_time = real_time.withColumn('arrival_time_schedule', 
+#                                  unix_timestamp('arrival_time_schedule', "dd.MM.yyyy HH:mm"))\
+#                 .withColumn('arrival_time_actual', unix_timestamp('arrival_time_actual', "dd.MM.yyyy HH:mm"))\
+#                 .withColumn("arrival_delay", col("arrival_time_actual") - col("arrival_time_schedule"))\
+#                 .filter("arrival_delay is not NULL")
+#
+# # Convert timestamps to day and hour
+# real_time = real_time.withColumn("day_of_week", dayofweek(from_unixtime(col("arrival_time_schedule"))))\
+#                     .withColumn("hour", hour(from_unixtime(col("arrival_time_schedule"))))
+#                     
+#
+# # Clip negative delays to 0
+# real_time = real_time.withColumn("arrival_delay", when(real_time["arrival_delay"] < 0, 0)\
+#                                  .when(col("arrival_delay").isNull(), 0)\
+#                                  .otherwise(col("arrival_delay")/60)).cache()
+# -
+
+# #### EDA of the delay distribution
+#
+# Now we try to plot some of the delay distribution for tuples `(station, transport type)` to try to assess visually the nature of the distribution.
+
+# + magic_args="-o sample_dist" language="spark"
+# delays_distrib = real_time.filter("year == 2021").filter("month == 1")\
+#                         .select(["STOP_NAME", "produkt_id", "arrival_delay"])\
+#                         .groupBy(["STOP_NAME", "produkt_id","arrival_delay"]).count().cache()
+#
+# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Adliswil")\
+#                             .filter(delays_distrib.produkt_id == "Zug")
+
+# +
+# Exponential distribution. We are going to fit parameter a
+def pdf(x, a):
+        return a * np.exp(-a * x)
+
+def plot_delay_dist(sample_dist):
+    fig = plt.figure(figsize=(20, 6))
+    # Convert frequencies to density
+    sample_dist = sample_dist.copy().sort_values("arrival_delay")
+    sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
+    
+    
+    g = sns.barplot(data=sample_dist.sort_values("arrival_delay"), x="arrival_delay", y="count")
+    g.set_xticklabels(g.get_xticklabels(), rotation=45)
+    
+    # Fit the exponential
+    popt, pcov = curve_fit(pdf, sample_dist.arrival_delay, sample_dist['count'])
+    yy = pdf(sample_dist.arrival_delay, *popt)
+    g.plot(range(len(sample_dist)), yy, '-o')
+    
+    station = sample_dist.STOP_NAME.iloc[0]
+    transport_mean = sample_dist.produkt_id.iloc[0]
+    g.set_xlabel("Delay (min)", fontsize=16)
+    g.set_ylabel("Normalized count", fontsize=16)
+    g.set_title(f"Delay distribution of trains at {station}", fontsize=16)
+    g.text(15, 0.5, f'$\lambda=${popt[0]:.2f}', horizontalalignment='right', verticalalignment='top', fontsize=20)
+    plt.show()
+    
+plot_delay_dist(sample_dist)
+# -
+
+# #### Fit distribution on for all (stops, transport type) pairs
+#
+# This visual inspection lead us to one hypothesis : an **exponential distribution** ($\approx exp(\lambda)$) would be a good model for this distribution.
+#
+# Let's use some statistics tools to have the best possible estiamtor of the parameter $\lambda$.
+
+# + language="spark"
+#
+# @udf
+# def compute_lambda_udf(l):
+#     counts = np.array(l[1])
+#     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts / float(counts.sum()))
+#     return float(popt[0])
+#
+#
+# # Show how it works on a subset
+# delays_distrib.withColumn("arrival_delay", col("arrival_delay") /60)\
+#                 .groupBy(['STOP_NAME','produkt_id'])\
+#                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
+#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).show(4)
+
+# + magic_args="-o lambdas " language="spark"
+# # This cell takes ~20min
+#
+# finalCols = ["STOP_NAME", "produkt_id", "day_of_week", "hour"]
+#
+# # Since we only have the timetable of Wednesday, we only model delays on Wednesday
+# # We also restrict the hours of the day from 5am to 10pm
+# # Finally we count the frequencey of each delay to create the density function
+# day = real_time.select(["STOP_NAME", "produkt_id", "arrival_delay", "day_of_week", "hour"]).dropna()\
+#                 .filter(real_time.day_of_week == 3).filter((real_time.hour > 4) & (real_time.hour < 23))\
+#                 .groupBy(finalCols + ['arrival_delay']).count()
+#
+# # From the density of delays we fit an exponential distribution and save the parameter lambda
+# lambdas = day.groupBy(finalCols)\
+#                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
+#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).drop('delays')
+# -
+
+lambdas.to_csv('../data.lambdas.csv',index=False)
