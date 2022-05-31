@@ -25,7 +25,34 @@ get_ipython().run_line_magic(
 # + language="spark"
 # from functools import reduce
 # from math import sin, cos, sqrt, atan2, radians
+# import pyspark.sql.functions as *
 # import pyspark.sql.functions as F
+# from pyspark.sql.types import ArrayType, StringType, IntegerType
+# from pyspark.sql.window import Window
+# import numpy as np
+# from scipy.optimize import curve_fit
+#
+#
+#
+# REMOTE_PATH = "/group/abiskop1/project_data/"
+#
+#
+#
+# def count_nan_null(df):
+#     df.select([F.count(F.when(F.isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
+#
+#
+# def read_orc(fname):
+#     df = spark.read.orc("/data/sbb/part_orc/{name}".format(name=fname))
+#     return df.filter((df.year == 2020) & (df.month == 5) & (df.day > 12) & (df.day < 18))
+#
+#
+# def write_hdfs(df, dirname):
+#     df.coalesce(1).write.format("com.databricks.spark.csv").mode('overwrite')\
+#    .option("header", "true").save(REMOTE_PATH + dirname)
+#     
+#     
+# spark.conf.set("spark.sql.session.timeZone", "UTC+2")
 # -
 
 # # Stops processing
@@ -91,18 +118,7 @@ get_ipython().run_line_magic(
 # We can now use the previous table to filter the arrival times to keep only trips within the 15km radius
 
 # + language="spark"
-# stopt = spark.read.orc("/data/sbb/part_orc/stop_times")
-# stopt.printSchema()
-
-# + language="spark"
-# stopt.show()
-
-# + language="spark"
-# stopt.count()
-
-# + language="spark"
-# # Within the week specified by the instructions, only Wednesday contains data, 13/05/2020
-# stopt = stopt.filter("year == 2020").filter("month == 5").filter("day >= 13").filter("day < 17")
+# stopt = read_orc("stop_times")
 # stopt.count()
 
 # + language="spark"
@@ -190,8 +206,8 @@ from datetime import datetime
 # + language="spark"
 # real_time = spark.read.orc("/data/sbb/part_orc/istdaten").dropna()
 #
-# arrivals = spark.read.csv(REMOTE_PATH + "arrivalsRouteStops.csv", header='true', inferSchema='true')
-# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("$")[0])(col("end_route_stop_id")))
+# arrivals = spark.read.csv(REMOTE_PATH + "routestops", header='true', inferSchema='true')
+# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("$")[0])(col("route_stop_id")))
 #
 # print("The Schema is :")
 # real_time
@@ -294,9 +310,6 @@ plot_delay_dist(sample_dist)
 # ### Fit distribution on for all (stops, transport type) pairs
 
 # + language="spark"
-# from pyspark.sql.functions import pandas_udf, PandasUDFType
-# import numpy as np
-# from scipy.optimize import curve_fit
 #
 # @udf
 # def compute_lambda_udf(l):
@@ -335,32 +348,10 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 
 # + language="spark"
 #
-# from functools import reduce
-# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list
-# from pyspark.sql.functions import countDistinct, concat
-# from pyspark.sql.functions import udf, explode, split
-# import pyspark.sql.functions as F
-# from pyspark.sql.types import ArrayType, StringType, IntegerType
-# from pyspark.sql.window import Window
-# REMOTE_PATH = "/group/abiskop1/project_data/"
+#
 
 # + language="spark"
 #
-# def count_nan_null(df):
-#     df.select([F.count(F.when(F.isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
-#
-#
-# def read_orc(fname):
-#     df = spark.read.orc("/data/sbb/part_orc/{name}".format(name=fname))
-#     return df.filter((df.year == 2020) & (df.month == 5) & (df.day > 12) & (df.day < 18))
-#
-#
-# def write_hdfs(df, dirname):
-#     df.coalesce(1).write.format("com.databricks.spark.csv").mode('overwrite')\
-#    .option("header", "true").save(REMOTE_PATH + dirname)
-
-# + language="spark"
-# spark.conf.set("spark.sql.session.timeZone", "UTC+2")
 # -
 
 # ## Loading selected stations (Stops)
@@ -392,14 +383,8 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # ## Stop times
 
 # + language="spark"
-# stoptimes = spark.read.orc("/data/sbb/part_orc/stop_times")
-# stoptimes.printSchema()
-# -
-
-# ### Stop times at relevant date
-
-# + language="spark"
-# relevant_stoptimes = stoptimes.filter("year == 2020").filter("month == 5").filter("day == 13")
+# relevant_stoptimes = read_orc("stop_times")
+# relevant_stoptimes.printSchema()
 # -
 
 # ### Stop times in radius
