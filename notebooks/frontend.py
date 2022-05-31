@@ -75,8 +75,9 @@ all_widget_in_one, output = get_widgets(stations, table_dict)
 from IPython.display import display
 display(all_widget_in_one, output)
 
+test = stations['Zürich, Neeserweg']
 
-
-
+for s in test.stops:
+    print(s.route_name)
 
 

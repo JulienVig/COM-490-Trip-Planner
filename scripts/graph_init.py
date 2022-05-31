@@ -49,7 +49,7 @@ def init_graph():
             routestops[row['route_stop_id']].set_prev_stop(routestops[row['prev_route_stop_id']])
             
     table_df = pd.read_csv(join(DATA,  'timetable.csv'))
-    hours = table_df.groupby("route_stop_id").apply(lambda row: list(row.arrival_time)).to_frame()
+    hours = table_df.groupby("route_stop_id").apply(lambda row: list(sorted(row.arrival_time))).to_frame()
     
     timetable = {}
     for i, row in hours.iterrows():

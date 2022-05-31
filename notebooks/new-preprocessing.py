@@ -94,6 +94,9 @@ get_ipython().run_line_magic(
 #                                              unix_timestamp('arrival_time_complete', "yyyy/MM/dd HH:mm:ss")).dropna()
 # close_stoptimes = close_stoptimes.cache()
 # close_stoptimes.printSchema()
+
+# + language="spark"
+# close_stoptimes.count()
 # -
 
 # As we can see, in a single day arrival times are duplicated for each stop_id, we will therefore drop them
@@ -122,15 +125,17 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # selected_stoptimes = close_stoptimes.select("trip_id", "stop_id", "departure_time", "arrival_time", "stop_sequence")
-# trips_stop_times = trips.select("route_id", "trip_id", "trip_headsign").join(selected_stoptimes, on="trip_id",how="inner")
+# trips_stop_times = trips.select("route_id", "trip_id", "trip_headsign", 'direction_id').join(selected_stoptimes, on="trip_id",how="inner")
 # #trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
+# trips_stop_times = trips_stop_times.withColumnRenamed("route_id", "short_route_id")
+# trips_stop_times = trips_stop_times.withColumn("route_id", concat(col("short_route_id"), lit("&"), col("direction_id")))
 #
 # w = Window.partitionBy(['trip_id']).orderBy(col("stop_sequence").asc())
 # trips_stop_times = trips_stop_times.withColumn("clean_stop_seq", F.row_number().over(w))
 # trips_stop_times.count()
 
 # + language="spark"
-# trips_stop_times.filter(col("clean_stop_seq") !=  col('stop_sequence')).dropDuplicates(["trip_id"]).count()
+# trips_stop_times.filter(col("clean_stop_seq") != col('stop_sequence')).dropDuplicates(["trip_id"]).count()
 # -
 
 # Some routes loop over the same stops, therefore we add the occurence index in the stop id for each trip to create
@@ -160,9 +165,9 @@ get_ipython().run_line_magic(
 # duplicates.filter(col("Duplicate_indicator") > 0).count()
 
 # + language="spark"
-# routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name')
+# routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name').withColumnRenamed('route_id', 'short_route_id')
 #
-# duplicates.filter(col("Duplicate_indicator") > 0).join(routes_orc, 'route_id', 'inner')\
+# duplicates.filter(col("Duplicate_indicator") > 0).join(routes_orc, 'short_route_id', 'inner')\
 #             .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner').orderBy(cols).show()
 # -
 
@@ -173,6 +178,7 @@ get_ipython().run_line_magic(
 # + language="spark"
 # timetable = stop_times_ranked.select(["route_stop_id", "arrival_time"])\
 #                     .dropDuplicates(["route_stop_id", "arrival_time"]).cache()
+# timetable.count()
 
 # + language="spark"
 # write_hdfs(timetable, "timetableRefacFinal")
@@ -233,8 +239,8 @@ get_ipython().run_line_magic(
 # complete_route_stops.show(5)
 
 # + language="spark"
-# routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name')
-# final_complete_route_stops = complete_route_stops.join(routes_orc, 'route_id', 'inner')\
+# routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name').withColumnRenamed('route_id', 'short_route_id')
+# final_complete_route_stops = complete_route_stops.join(routes_orc, 'short_route_id', 'inner')\
 #                                                 .drop('route_id')\
 #                                                 .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner')
 #
