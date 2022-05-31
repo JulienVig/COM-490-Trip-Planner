@@ -14,59 +14,6 @@ def prettify_seconds(seconds):
     return time.strftime('%H:%M:%S', time.gmtime(seconds))
 
 
-
-# format with station dep name, station arr name, total time (nice string), walk time (nice string), success proba, transfers
-HTML_HEADER = """
-<li class="myheader">
-    <p>Your trip from <b>{}</b> to <b>{}</b></p>
-    <p>Total time : <b>{}</b> Walking time : <b>{}</b></p>
-    <p>Success probability : <b>{}</b></p>
-    <p>Transfers : <b>{}</b></p>
-</li>
-"""
-
-
-CSS_WIDGET = """
-<style>
-.myul {
-  list-style-type: none;
-  width: 500px;
-}
-.myh3 {
-  font: bold 20px/1.7 Helvetica, Verdana, sans-serif;
-  margin:10px;
-}
-.stops{
-  display:flex;
-  justify-content: space-between;
-}
-.stop {
-  padding:0px;
-  margin:0px;
-  font: 14px/1.5 Helvetica, Times New Roman, sans-serif;
-}
-.myheader p  {
-  margin: 0;
-  font: 14px/1.5 Helvetica, Times New Roman, sans-serif;
-}
-.myli, .myheader {
-  overflow: auto;
-  width:90%;
-}
-.myli {
-  padding: 15px;
-}
-.myli:hover, .myheader:hover {
-  background: #eee;
-  cursor: pointer;
-}
-.trip {
-  font: 14px/1.2 Helvetica
-}
-</tyle>
-"""
-
-
 def visualize_path(solution: RealSolution, html_widget):
     #dict to map transport type to color and to accumulator
     color_cycle=["#0e51ed","#ed0000","#030591","#4fdb4b","#028a00"]
@@ -136,7 +83,7 @@ def visualize_path(solution: RealSolution, html_widget):
 
     fig.show()
 
-def get_widgets(stations, table_dict):
+def get_widgets(stations, table_dict, cleanup):
     station_names = list(stations.keys())
     
     
@@ -186,6 +133,7 @@ def get_widgets(stations, table_dict):
     def run_button(b):
         #reset display
         output.clear_output()
+        cleanup()
 
         #get all value of widget
 
@@ -199,10 +147,10 @@ def get_widgets(stations, table_dict):
         arrival_time=pd.to_datetime("%02d:%02d:00"%(hour.value,minute.value))
 
         with output:
+            print(starting_station, arrival_station)
             multiple_sols = False
             target_arr_time = 10000
             #Reverse start and arrival here because Tenet
-            print("looking for confidence",confidence)
             table = Timetable(table_dict, confidence, arrival_time)
             denver = Denver(confidence, arrival_station, starting_station, table, multiple_sols)
             solutions = denver.run()
@@ -231,3 +179,57 @@ def get_widgets(stations, table_dict):
     #arrange them in a column
     all_widget_in_one=widgets.VBox(widget_by_row)
     return all_widget_in_one, output
+
+
+# format with station dep name, station arr name, total time (nice string), walk time (nice string), success proba, transfers
+HTML_HEADER = """
+<li class="myheader">
+    <p>Your trip from <b>{}</b> to <b>{}</b></p>
+    <p>Total time : <b>{}</b> Walking time : <b>{}</b></p>
+    <p>Success probability : <b>{}</b></p>
+    <p>Transfers : <b>{}</b></p>
+</li>
+"""
+
+
+CSS_WIDGET = """
+<style>
+.myul {
+  list-style-type: none;
+  width: 500px;
+}
+.myh3 {
+  font: bold 20px/1.7 Helvetica, Verdana, sans-serif;
+  margin:10px;
+}
+.stops{
+  display:flex;
+  justify-content: space-between;
+}
+.stop {
+  padding:0px;
+  margin:0px;
+  font: 14px/1.5 Helvetica, Times New Roman, sans-serif;
+}
+.myheader p  {
+  margin: 0;
+  font: 14px/1.5 Helvetica, Times New Roman, sans-serif;
+}
+.myli, .myheader {
+  overflow: auto;
+  width:90%;
+}
+.myli {
+  padding: 15px;
+}
+.myli:hover, .myheader:hover {
+  background: #eee;
+  cursor: pointer;
+}
+.trip {
+  font: 14px/1.2 Helvetica
+}
+</tyle>
+"""
+
+

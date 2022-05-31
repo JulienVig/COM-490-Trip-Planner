@@ -12,6 +12,12 @@
 #     name: python3
 # ---
 
+import matplotlib.pyplot as plt
+import seaborn as sns
+from scipy.stats import expon
+import numpy as np
+from scipy.optimize import curve_fit
+
 # # Building the stochastic timetables
 #
 # ### Creating Spark Session
@@ -29,6 +35,7 @@ get_ipython().run_line_magic(
     "spark", "add -s {0}-final_project -l python -u {1} -k".format(username, server)
 )
 
+
 # + language="spark"
 # ## SPARK IMPORTS
 # from functools import reduce
@@ -45,9 +52,6 @@ get_ipython().run_line_magic(
 #
 # print("The Schema is :")
 # real_time
-# -
-
-# As I don't speak german :
 
 # + language="spark"
 # mapping =    [['BETRIEBSTAG', 'date'],
@@ -80,19 +84,71 @@ get_ipython().run_line_magic(
 # ### Restricting the station to the selected ones where transports arrive
 
 # + language="spark"
-#
 # stations = arrivals.select("STOP_NAME").dropDuplicates()
-# #print("Before selection real_data size : ", real_time.count())
-# real_time = real_time.join(stations, "STOP_NAME")#.cache()
-# #print("After selection real_data size : ", real_time.count())
+# real_time = real_time.join(stations, "STOP_NAME")
+#
+# # Compute the delay
+# real_time = real_time.withColumn('arrival_time_schedule', 
+#                                  unix_timestamp('arrival_time_schedule', "dd.MM.yyyy HH:mm"))\
+#                 .withColumn('arrival_time_actual', unix_timestamp('arrival_time_actual', "dd.MM.yyyy HH:mm"))\
+#                 .withColumn("arrival_delay", col("arrival_time_actual") - col("arrival_time_schedule"))\
+#                 .filter("arrival_delay is not NULL")
+#
+# # Convert timestamps to day and hour
+# real_time = real_time.withColumn("day_of_week", dayofweek(from_unixtime(col("arrival_time_schedule"))))\
+#                     .withColumn("hour", hour(from_unixtime(col("arrival_time_schedule"))))
+#                     
+#
+# # Clip negative delays to 0
+# real_time = real_time.withColumn("arrival_delay", when(real_time["arrival_delay"] < 0, 0)\
+#                                  .when(col("arrival_delay").isNull(), 0)\
+#                                  .otherwise(col("arrival_delay")/60)).cache()
 # -
 
 # ## EDA of the delay distribution
 
 # + language="spark"
-# real_time = real_time.withColumn('arrival_time_schedule', unix_timestamp('arrival_time_schedule', "dd.MM.yyyy HH:mm"))
-# real_time = real_time.withColumn('arrival_time_actual', unix_timestamp('arrival_time_actual', "dd.MM.yyyy HH:mm"))
-# real_time = real_time.withColumn("arrival_delay", col("arrival_time_actual") - col("arrival_time_schedule"))
+# delays_distrib = real_time.filter("year == 2021").filter("month == 1")\
+#                         .select(["STOP_NAME", "produkt_id", "arrival_delay"])\
+#                         .groupBy(["STOP_NAME", "produkt_id","arrival_delay"]).count().cache()
+#
+
+# + magic_args="-o sample_dist" language="spark"
+# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Adliswil")\
+#                             .filter(delays_distrib.produkt_id == "Zug")
+
+# +
+# Exponential distribution. We are going to fit parameter a
+def pdf(x, a):
+        return a * np.exp(-a * x)
+
+def plot_delay_dist(sample_dist):
+    fig = plt.figure(figsize=(20, 6))
+    # Convert frequencies to density
+    sample_dist = sample_dist.copy().sort_values("arrival_delay")
+    sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
+    
+    
+    g = sns.barplot(data=sample_dist.sort_values("arrival_delay"), x="arrival_delay", y="count")
+    g.set_xticklabels(g.get_xticklabels(), rotation=45)
+    
+    # Fit the exponential
+    popt, pcov = curve_fit(pdf, sample_dist.arrival_delay, sample_dist['count'])
+    yy = pdf(sample_dist.arrival_delay, *popt)
+    g.plot(range(len(sample_dist)), yy, '-o')
+    
+    station = sample_dist.STOP_NAME.iloc[0]
+    transport_mean = sample_dist.produkt_id.iloc[0]
+    g.set_xlabel("Delay (min)", fontsize=16)
+    g.set_ylabel("Normalized count", fontsize=16)
+    g.set_title(f"Delay distribution of trains at {station}", fontsize=16)
+    g.text(15, 0.5, f'$\lambda=${popt[0]:.2f}', horizontalalignment='right', verticalalignment='top', fontsize=20)
+    plt.show()
+    
+plot_delay_dist(sample_dist)
+# -
+
+# ### Fit distribution on for all (stops, transport type) pairs
 
 # + language="spark"
 # from pyspark.sql.functions import pandas_udf, PandasUDFType
@@ -105,219 +161,30 @@ get_ipython().run_line_magic(
 #     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts / float(counts.sum()))
 #     return float(popt[0])
 
-# + language="spark"
-# analysis = real_time.filter("year == 2021").filter("month == 1")
-# analysis = analysis.withColumn("arrival_delay", when(analysis["arrival_delay"] < 0, 0).when(col("arrival_delay").isNull(), 0).otherwise(col("arrival_delay")))
-# delays_distrib = analysis.select(["STOP_NAME", "produkt_id", "arrival_delay"]).groupBy(["STOP_NAME", "produkt_id","arrival_delay"]).count().cache()
-#
-# -
-
-# #### test with :
-#
-# - Schützenmattstrasse : Bus, tram
-# - Länggasse
-# - Vacallo, Piazza
-# - Studen BE
-
-# +
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy.stats import expon
-import numpy as np
-from scipy.optimize import curve_fit
-
-def plot_delay_dist(sample_dist):
-    fig = plt.figure(figsize=(20, 6))
-    sample_dist = sample_dist.copy().sort_values("arrival_delay")
-    sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
-    sample_dist["arrival_delay"] = sample_dist["arrival_delay"] 
-    station = sample_dist.STOP_NAME.iloc[0]
-    transport_mean = sample_dist.produkt_id.iloc[0]
-    
-    g = sns.barplot(data=sample_dist.sort_values("arrival_delay"), x="arrival_delay", y="count")
-    g.set_xticklabels(g.get_xticklabels(), rotation=45)
-    popt, pcov = curve_fit(pdf, sample_dist.arrival_delay, sample_dist['count'])
-    yy = pdf(sample_dist.arrival_delay, *popt)
-    g.plot(range(len(sample_dist)), yy, '-o')
-    g.set_xlabel("Delay (min)", fontsize=16)
-    g.set_ylabel("Normalized count", fontsize=16)
-    g.set_title(f"Delay distribution of trains at {station}", fontsize=16)
-    g.text(15, 0.5, f'$\lambda=${popt[0]:.2f}', horizontalalignment='right', verticalalignment='top', fontsize=20)
-    print("STATION :", station)
-    print("MEAN OF TRANSPORTATION : ", transport_mean);
-    #fig.savefig('../figs/delay_dist.png', dpi=200)
-    plt.show()
-
-
-# + magic_args="-o sample_dist" language="spark"
-# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Adliswil").filter(delays_distrib.produkt_id == "Zug")
-
-# +
-def pdf(x, a):
-        return a*np.exp(-a*x)
-    
-def cdf(x, a):
-        return 1 - np.exp(-a*x)
-    
-def fit_exp(sample_dist):
-    sample_dist = sample_dist.copy()
-    sample_dist['count'] = sample_dist['count'] / sample_dist['count'].sum()
-    sample_dist["arrival_delay"] = np.where(sample_dist["arrival_delay"] < 0, 0, sample_dist["arrival_delay"])
-    popt, pcov = curve_fit(pdf, sample_dist.arrival_delay,  sample_dist['count'])
-    print("lambda =", popt[0])
-    yy = pdf(sample_dist.arrival_delay.sort_values(), *popt)
-    plt.plot(sample_dist.arrival_delay.sort_values(), yy, '-o')
-    
-fit_exp(sample_dist)
-
 # + tags=[] language="spark"
+# # Show how it works on a subset
 # delays_distrib.withColumn("arrival_delay", col("arrival_delay") /60)\
 #                 .groupBy(['STOP_NAME','produkt_id'])\
 #                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
-#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).show()
-# -
+#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).show(4)
 
-plot_delay_dist(sample_dist)
-
-# + magic_args="-o sample_dist" language="spark"
-# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Schützenmattstrasse").filter(delays_distrib.produkt_id == "Tram")
-# -
-
-plot_delay_dist(sample_dist)
-
-# + magic_args="-o sample_dist" language="spark"
-# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Schützenmattstrasse").filter(delays_distrib.produkt_id == "Bus")
-# -
-
-plot_delay_dist(sample_dist)
-
-# + magic_args="-o sample_dist" language="spark"
-# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Studen BE").filter(delays_distrib.produkt_id == "Zug")
-# -
-
-plot_delay_dist(sample_dist)
-
-# + magic_args="-o sample_dist" language="spark"
-# sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Zürich, Oerlikerhus").filter(delays_distrib.produkt_id == "Tram")
-# -
-
-plot_delay_dist(sample_dist)
-
-# + language="spark"
-# #delays_distrib.filter(delays_distrib.STOP_NAME ==  "Studen BE").select("produkt_id").dropDuplicates().show()
-# delays_distrib.filter(delays_distrib.STOP_NAME == "Zürich, Oerlikerhus").select("produkt_id").dropDuplicates().show(30)
-
-# + magic_args="-o full_dist" language="spark"
-# full_dist = delays_distrib.groupby("arrival_delay").sum()
-# -
-
-full_dist["arrival_delay"] = full_dist["arrival_delay"] / 60
-full_dist = full_dist[full_dist.arrival_delay < 20]
-full_dist = full_dist[full_dist.arrival_delay >= 0]
-
-plt.subplots(figsize=(20, 5))
-#full_count = full_dist["sum(count)"].sum()
-#full_dist["y"] = full_dist["sum(count)"] / full_count
-g = sns.barplot(data=full_dist.sort_values("arrival_delay"), x="arrival_delay", y="sum(count)")
-g.set_xticklabels(g.get_xticklabels(), rotation=45);
-#plt.xlim([-10, 10]);
-
-# ### Get day of the `week` and `hour`
-
-# + language="spark"
-# real_time = real_time.filter("arrival_delay is not NULL")
-# real_time = real_time.withColumn("day_of_week", dayofweek(from_unixtime(col("arrival_time_schedule"))))
-# real_time = real_time.withColumn("hour", hour(from_unixtime(col("arrival_time_schedule"))))#.cache()
-# -
-
-# ### Get mean delay table
-
-# + language="spark"
-# real_time = real_time.select(["STOP_NAME", "produkt_id", "arrival_delay", "day_of_week", "hour"]).dropna()
-# real_time = real_time.withColumn("arrival_delay", when(real_time["arrival_delay"] < 0, 0).when(col("arrival_delay").isNull(), 0)\
-#                                  .otherwise(col("arrival_delay")/60))
-# ## creating the table
+# + magic_args="-o lambdas " language="spark"
+# # This cell takes ~30min
+#
 # finalCols = ["STOP_NAME", "produkt_id", "day_of_week", "hour"]
 #
-
-# + language="spark"
 # # Since we only have the timetable of Wednesday, we only model delays on Wednesday
 # # We also restrict the hours of the day from 5am to 10pm
-# day = real_time.filter(real_time.day_of_week == 3).filter((real_time.hour > 4) & (real_time.hour < 23))
-# day = day.groupBy(finalCols + ['arrival_delay']).count().cache()
+# # Finally we count the frequencey of each delay to create the density function
+# day = real_time.select(["STOP_NAME", "produkt_id", "arrival_delay", "day_of_week", "hour"]).dropna()\
+#                 .filter(real_time.day_of_week == 3).filter((real_time.hour > 4) & (real_time.hour < 23))\
+#                 .groupBy(finalCols + ['arrival_delay']).count()
 #
-#
-
-# + language="spark"
+# # From the density of delays we fit an exponential distribution and save the parameter lambda
 # lambdas = day.groupBy(finalCols)\
 #                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
-#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).drop('delays').cache()
+#                 .withColumn("lambda", compute_lambda_udf(col("delays"))).drop('delays')
 
 # + language="spark"
-# lambdas.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "lambdas_ext.csv")
-
-# + language="spark"
-# spark.read.csv(REMOTE_PATH + "lambdas_ext.csv", header=True).show()
-# -
-
-# ## what was used before:
-
-# + language="spark"
-# real_time = real_time.groupBy(finalCols).mean()\
-#                      .select(finalCols + ["avg(arrival_delay)"])\
-#                      .dropDuplicates()
-
-# + language="spark"
-# real_time = real_time.withColumnRenamed("avg(arrival_delay)", "inv_lambda")
-
-# + language="spark"
-# real_time.coalesce(1).write.format("com.databricks.spark.csv")\
-#    .option("header", "true").save(REMOTE_PATH + "delay_distrib_final2.csv")
-# -
-
-# ## Create Route Name table
-
-# + language="spark"
-# spark.read.orc("/data/sbb/part_orc/routes").show()
-
-# + language="spark"
-#
-# ## creates route name !
-# route_names = spark.read.orc("/data/sbb/part_orc/routes").withColumn("route_name", concat(col("route_desc"), lit(" "), col("route_short_name")))\
-#                 .select(["route_id", "route_name", "route_desc"])\
-#                 .dropDuplicates()
-#
-# ## get simple type
-# complex_to_simple_type = {
-#     "TGV":"Train",
-#     "Eurocity":"Train",
-#     "Regionalzug":"Train",
-#     "RegioExpress":"Train",
-#     "S-Bahn":"Train",
-#     "Tram":"Tram",
-#     "ICE":"Train",
-#     "Bus":"Bus",
-#     "Eurostar":"Train",
-#     "Intercity":"Train",
-#     "InterRegio":"Train",
-#     "Extrazug":"Train"
-# }
-#
-# get_simple_type = udf(lambda complex_type : complex_to_simple_type.get(complex_type,"unknown"))
-#
-# route_names = route_names.withColumn("transport_type", get_simple_type(col("route_desc")))\
-#                 .drop("route_desc")
-# route_names.show(3)
-
-# + magic_args="-o route_names_and_types -n -1" language="spark"
-# route_names_and_types = route_names
-# #route_names.coalesce(1).write.format("com.databricks.spark.csv")\
-# #   .option("header", "true").save(REMOTE_PATH + "route_names_and_types.csv")
-# -
-
-route_names_and_types
-
-route_names_and_types.to_csv("../data/route_names_types.csv")
-
-
+# lambdas.coalesce(1).write.format("com.databricks.spark.csv").mode("overwrite")\
+#    .option("header", "true").save(REMOTE_PATH + "lambdas.csv")

@@ -6,34 +6,51 @@ from denver import Denver
 from os.path import join
 import pandas as pd
 import math
+from math import sin, cos, sqrt, atan2, radians
 import numpy as np
 from collections import defaultdict
 from datetime import datetime
 
 DATA = '../data/'
 
+# We model a random city as follows:
+# - The stations are located on a grid of size defined by the user. They are located randomly and not all squares of the grid contains a station
+# - Once the stations created, we create the routes by:
+#     1. Selecting one station and a direction at random
+#     2. Exploring the neighboring stations in the chosen direction, if we find a station, we create a new route, link the two stations and continue.
+#     3. Repeat until there aren't station in the proximity or if we reach the maximum route length
+#     4. Walking paths are creating between neighboring stations
+
 # # Define graph parameters
 
 # +
-SIZE = 17 #km
-MAX_LAT = SIZE / 110.574
-MAX_LON = SIZE / (111.320 * math.cos(MAX_LAT))
+SIZE = 17 # size in km of the grid
+# number of max station per km, that only defines how far in terms of distance stations are
+# and not how well connected they are
+square_ratio = 10
+
+
 N_STATIONS = 2000
 N_ROUTE = 3000
-MAX_ROUTE_LEN = 15
-TRANSPORT_TYPES = ['Train', 'Bus', 'Tram', 'unknown']
+# this defines the notion of proximity/neighbors, we exploring proximity we will search as 
+# far as N_STATION_RANGE sqaures in the grid
+N_STATION_RANGE = 6 
 
-square_ratio = 10 # number of max station per km
+# maximum number of stations in a route
+MAX_ROUTE_LEN = 15
+# -
+
+# Constants
+MAX_LAT = SIZE / 110.574
+MAX_LON = SIZE / (111.320 * math.cos(MAX_LAT))
+TRANSPORT_TYPES = ['Train', 'Bus', 'Tram', 'unknown']
 array_size = SIZE * square_ratio # stations can be as close as 250m
 SQUARE_TO_METER = 1000 / float(square_ratio) # distance between each square of the grid
-N_STATION_RANGE = 6 
 TRAVEL_SPEED = 60/ 200 # 1min per 200 m
 WALKING_SPEED = 60 / 50 # 60s / 50m
 DAY_START_TS = 1589346000 # 13/05/2020 5am
 DAY_END_TS = 1589407200 # 13/05/2020 10pm
 
-
-# -
 
 # # Create the graph instances
 
@@ -64,9 +81,6 @@ def get_random_coord():
     return np.random.randint(0, array_size), np.random.randint(0, array_size)
 
 
-# +
-from math import sin, cos, sqrt, atan2, radians
-
 def compute_walking_time(lat1, lon1, lat2, lon2):
     # approximate radius of earth in km
     R = 6373.0
@@ -85,6 +99,10 @@ def compute_walking_time(lat1, lon1, lat2, lon2):
     distance = R * c * 1000 # convert from km to m
     return int(round(distance *  WALKING_SPEED))
 
+
+# ## Graph creation
+
+# Here we create the graph. As it is randomly generated, there are some parameters combinations that cannot be satisfied, for instance if you are asking for more stations than sqaures in the grid
 
 # +
 np.random.seed(42)
@@ -157,7 +175,8 @@ for (x,y), w in walkstop_locations.items():
         s1 = w.station
         s2 = neighbor.station
         walking_time = compute_walking_time(s1.latitude, s1.longitude, s2.latitude, s2.longitude)
-        w.add_neighbor((neighbor, walking_time))
+        if walking_time < 600: # less than 10mins of walk
+            w.add_neighbor((neighbor, walking_time))
         
 """ Create the time table """
 

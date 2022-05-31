@@ -12,6 +12,9 @@ def init_graph():
     
     """INIT STATION"""
     station_df = pd.read_csv(join(DATA, 'stations.csv'))
+    if len(station_df) == 2:
+        raise RuntimeError("Tables empty, run git lfs pull")
+            
     stations = {}
     for i, row in station_df.iterrows():
         stations[row['STOP_NAME']]= Station(row['stop_id'], row['STOP_NAME'], row['STOP_LAT'], row['STOP_LON'])
@@ -49,7 +52,7 @@ def init_graph():
             routestops[row['route_stop_id']].set_prev_stop(routestops[row['prev_route_stop_id']])
             
     table_df = pd.read_csv(join(DATA,  'timetable.csv'))
-    hours = table_df.groupby("route_stop_id").apply(lambda row: list(row.arrival_time)).to_frame()
+    hours = table_df.groupby("route_stop_id").apply(lambda row: list(sorted(row.arrival_time))).to_frame()
     
     timetable = {}
     for i, row in hours.iterrows():
@@ -80,4 +83,14 @@ def init_graph():
 
     for stop in walking.values():
         stop.station.add_stop(stop)
-    return stations, routestops, walking, timetable
+        
+    def cleanup():
+        for s in routestops.values():
+            s.cleanup()
+        for s in walking.values():
+            s.cleanup()
+        for s in stations.values():
+            s.cleanup()
+
+
+    return stations, timetable, cleanup

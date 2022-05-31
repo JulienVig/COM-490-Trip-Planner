@@ -126,6 +126,6 @@ class Trip:
         if (self.trans_type=="Walk"):
             html_str = HTML_TRIP_WALK.format(self.trans_type, self.route_name, self.station_dep.station_name, self.station_arr.station_name, dep_time_format, arr_time_format, strfdelta(duration_tdelta))
         else:
-            html_str = HTML_TRIP_TRANSPORT.format(self.trans_type, self.route_name, self.station_dep.station_name, self.station_arr.station_name, dep_time_format, arr_time_format, self.n_stops_crossed, strfdelta(duration_tdelta))
+            html_str = HTML_TRIP_TRANSPORT.format("", self.route_name, self.station_dep.station_name, self.station_arr.station_name, dep_time_format, arr_time_format, self.n_stops_crossed, strfdelta(duration_tdelta))
         
         return html_str
