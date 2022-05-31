@@ -9,7 +9,6 @@ FIRST_STATION_TS = 0  # Chosen timestamp of the first station in graph (and last
 class Denver:
     def __init__(self, threshold: float, g_start: Station, g_end: Station,
                  timetable: Timetable, multiple_sols: bool):
-        
         self.g_start = g_start
         self.g_end = g_end
         self.timetable = timetable
@@ -56,8 +55,7 @@ class Denver:
     def update_lines(marks: Marks) -> None:
         # The stop associated with each route is the first stop with a new arr_time on this route
         for route_name, stop in marks.route_marks.items():
-            update_prev = True
-            while update_prev and stop.rw_prev_stop is not None:
+            while stop.rw_prev_stop is not None:
                 new_arr_time = stop.arr_time + stop.travel_time
                 # Local & target pruning
                 if new_arr_time < marks.best_target_arr_time and new_arr_time < stop.rw_prev_stop.arr_time:
@@ -65,9 +63,7 @@ class Denver:
                     stop.rw_prev_stop.update_arrival(new_arr_time, stop, stop.acc_success, stop.n_changes)
                     # Mark next stop's station. Will be done twice but not a problem wrt correctness
                     marks.mark_station(stop.rw_prev_stop.station)
-                    stop = stop.rw_prev_stop
-                else:
-                    update_prev = False
+                stop = stop.rw_prev_stop
         marks.flush_routes()  # Unmark all routes
 
     @staticmethod
@@ -94,7 +90,6 @@ class Denver:
             # - the accumulated journey success probability is different
             if station.arr_time != new_arr_time or station.previous_node != earliest_stop \
                     or station.acc_success != earliest_stop.acc_success:
-
                 station.update_arrival(new_arr_time, earliest_stop, earliest_stop.acc_success, earliest_stop.n_changes)
                 # For each of the station's stops, see if the new earliest trip improves its arr_time
                 rw_station_arr_time = timetable.target_arr_time - station.arr_time + FIRST_STATION_TS

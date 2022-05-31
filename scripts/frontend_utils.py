@@ -16,6 +16,7 @@ def prettify_seconds(seconds):
 
 def visualize_path(solution: RealSolution, html_widget):
     #dict to map transport type to color and to accumulator
+    print()
     color_cycle=["#0e51ed","#ed0000","#030591","#4fdb4b","#028a00"]
 
     fig = go.Figure()
@@ -147,7 +148,6 @@ def get_widgets(stations, table_dict, cleanup):
         arrival_time=pd.to_datetime("%02d:%02d:00"%(hour.value,minute.value))
 
         with output:
-            print(starting_station, arrival_station)
             multiple_sols = False
             target_arr_time = 10000
             #Reverse start and arrival here because Tenet
