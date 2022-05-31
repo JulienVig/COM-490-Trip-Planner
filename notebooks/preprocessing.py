@@ -32,6 +32,7 @@ get_ipython().run_line_magic(
 # from functools import reduce
 # from math import sin, cos, sqrt, atan2, radians
 # from pyspark.sql.functions import *
+# import pyspark.sql.functions as F
 # from pyspark.sql.types import ArrayType, StringType, IntegerType
 # from pyspark.sql.window import Window
 # import numpy as np
@@ -48,7 +49,7 @@ get_ipython().run_line_magic(
 #     """
 #         displays number of NULL and NaN in each column
 #     """
-#     df.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
+#     df.select([F.count(F.when(F.isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
 #
 #
 # def read_orc(fname):
@@ -86,7 +87,7 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 #
-# @udf
+# @F.udf
 # def distance_gps(coordinate_struct):
 #     """Return the distance between two GPS coordinates in km"""
 #     
@@ -115,10 +116,10 @@ get_ipython().run_line_magic(
 # ZURICH_HB_LAT = 47.3781762039461
 # ZURICH_HB_LON = 8.54021154209037
 #
-# stops_hb = stops.withColumn('ZHB_LAT', lit(ZURICH_HB_LAT))\
-#     .withColumn('ZHB_LON', lit(ZURICH_HB_LON))
+# stops_hb = stops.withColumn('ZHB_LAT', F.lit(ZURICH_HB_LAT))\
+#     .withColumn('ZHB_LON', F.lit(ZURICH_HB_LON))
 #     
-# stops_hb = stops_hb.withColumn('distance_hb',distance_gps(struct(stops_hb.STOP_LAT, stops_hb.STOP_LON, stops_hb.ZHB_LAT, stops_hb.ZHB_LON)))
+# stops_hb = stops_hb.withColumn('distance_hb',distance_gps(F.struct(stops_hb.STOP_LAT, stops_hb.STOP_LON, stops_hb.ZHB_LAT, stops_hb.ZHB_LON)))
 # -
 
 # Sanity check of the obtained stations :
@@ -165,7 +166,7 @@ stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 # + magic_args="-o stopw_dist_500m -n -1" language="spark"
 # max_walk_distance_km = 0.5
 # stopw_dist = stopw_cross.withColumn('walk_distance',
-#                                     distance_gps(struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, 
+#                                     distance_gps(F.struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, 
 #                                                           stopw_cross.STOP_LAT_2, stopw_cross.STOP_LON_2)))
 # stopw_dist_500m = stopw_dist.filter(stopw_dist.walk_distance <= max_walk_distance_km)\
 #                             .filter(stopw_dist.STOP_NAME != stopw_dist.STOP_NAME_2).cache()
@@ -359,10 +360,10 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # stations = reduce(lambda data, idx: data.withColumnRenamed(oldColumns[idx], newColumns[idx]), xrange(len(oldColumns)), stations)
 #
 # w = Window.partitionBy('STOP_NAME').orderBy(col("STOP_ID").asc())
-# stations = stations.withColumn("row_number",  row_number().over(w))\
+# stations = stations.withColumn("row_number",  F.row_number().over(w))\
 #                     .withColumn("NEW_STOP_NAME",
-#                                when(col('row_number') == lit(1), col('STOP_NAME'))
-#                                .otherwise(concat(col("STOP_NAME"), lit("_"),  lit(row_number().over(w)))))\
+#                                F.when(col('row_number') == lit(1), col('STOP_NAME'))
+#                                .otherwise(concat(col("STOP_NAME"), lit("_"),  lit(F.row_number().over(w)))))\
 #                                 .drop('STOP_NAME').withColumnRenamed('NEW_STOP_NAME', 'STOP_NAME')
 # stations.show()
 # -
@@ -416,7 +417,7 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # #trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
 #
 # w = Window.partitionBy(['trip_id']).orderBy(col("stop_sequence").asc())
-# trips_stop_times = trips_stop_times.withColumn("clean_stop_seq", row_number().over(w))
+# trips_stop_times = trips_stop_times.withColumn("clean_stop_seq", F.row_number().over(w))
 # trips_stop_times.count()
 # -
 
@@ -425,7 +426,7 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 
 # + language="spark"
 # w = Window.partitionBy(['trip_id', 'stop_id']).orderBy(col("clean_stop_seq").desc())
-# stop_times_ranked = trips_stop_times.withColumn("trip_stop_index", row_number().over(w))\
+# stop_times_ranked = trips_stop_times.withColumn("trip_stop_index", F.row_number().over(w))\
 #                         .withColumn("trip_stop_id", concat(col("stop_id"), lit("*"), col("trip_stop_index")))\
 #                         .withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("trip_stop_id")))\
 #                         .orderBy(['route_stop_id', 'trip_id', 'clean_stop_seq']).cache()
@@ -438,7 +439,7 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # cols = ["route_stop_id", "arrival_time"]
 #
 # duplicates = stop_times_ranked.join(
-#                 stop_times_ranked.groupBy(cols).agg((count("*")>1).cast("int").alias("Duplicate_indicator")),
+#                 stop_times_ranked.groupBy(cols).agg((F.count("*")>1).cast("int").alias("Duplicate_indicator")),
 #                 on=cols,
 #                 how="inner")\
 #                 .cache()
@@ -468,7 +469,7 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 #
 # window = Window.partitionBy("trip_id").orderBy(col("clean_stop_seq").desc())
 #
-# max_stop_times = stop_times_ranked.withColumn("row",row_number().over(window)) \
+# max_stop_times = stop_times_ranked.withColumn("row",F.row_number().over(window)) \
 #   .filter(col("row") == 1).drop("row").dropDuplicates(["route_id"])
 #
 # max_stop_times = max_stop_times.select(['trip_id', 'clean_stop_seq'])
@@ -484,7 +485,7 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # + language="spark"
 #
 # w = Window.partitionBy("route_id").orderBy(col("clean_stop_seq").desc())
-# route_stops = actual_routes.withColumn("actual_stop_seq", row_number().over(w)).drop("trip_id", "clean_stop_seq")
+# route_stops = actual_routes.withColumn("actual_stop_seq", F.row_number().over(w)).drop("trip_id", "clean_stop_seq")
 # print(actual_routes.count())
 # print(route_stops.count())
 #
@@ -528,7 +529,7 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 
 # + magic_args="-o  final_stations" language="spark"
 # final_stations = final_complete_route_stops.groupby('stop_id')\
-#                 .agg(collect_list(col('route_stop_id')).alias('route_stops'))\
+#                 .agg(F.collect_list(col('route_stop_id')).alias('route_stops'))\
 #                 .join(stations, 'stop_id', 'inner').drop('location_type', 'parent_station').cache()
 # final_stations.show(5, False)
 # -
