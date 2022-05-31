@@ -40,13 +40,13 @@ Folder architecture:
 ├── notebooks
     ├── main.py            # Main notebook, frontend to use Denver, our trip planner
     ├── mock-graph.py      # Let users create a custom graph and evaluate Denver on it
-    └── preprocessing.py   # All the preprocessing is contained in this notebook
+    └── preprocessing.py   # All the preprocessing is contained in this notebook
 ├── scripts
     ├── denver.py          # Implementation of the trip planner algorithm, tightly linked with graph.py
-    ├── frontend_utils.py  # Utility functions for main.py, mainly visualization functions
+    ├── frontend_utils.py  # Utility functions for main.py, mainly visualization functions
     ├── graph_init.py      # Function to create and instance the graph objects such as stations, timetable etc
-    ├── graph.py           # Contains the class definitions of all the objects used by Denver
-    └── trip.py            # Class at the interface between the algo output and the frontend, used to represent a solution
+    ├── graph.py           # Contains the class definitions of all the objects used by Denver
+    └── trip.py            # Class at the interface between the algo output and the frontend, used to represent a solution
 └── README.md
 ```
 
