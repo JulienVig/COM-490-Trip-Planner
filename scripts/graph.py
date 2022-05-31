@@ -15,8 +15,6 @@ class Node:
         self.n_changes = 0  # Number of changes currently done during the whole trip
 
     def update_arrival(self, new_arr_time: int, new_prev_node: 'Node', new_acc_success: float, new_n_changes) -> None:
-        if new_arr_time > self.arr_time:
-            print('oupsi')
         self.arr_time = new_arr_time
         self.previous_node = new_prev_node
         self.acc_success = new_acc_success
@@ -43,8 +41,13 @@ class Station(Node):
         self.stops: List[Stop] = stops if stops is not None else []
         self.latitude = latitude
         self.longitude = longitude
-        self.delays: Dict[str, np.array] = {'Bus': np.ones(24)*100, 'Tram': np.ones(24)*100,
-                                            'Train': np.ones(24)*100, 'unknown': np.ones(24)*100}
+        estimated_delays = np.array([1, 1, 1, 1, 0.68459708, 0.5819371, 0.53682017, 0.50530946, 0.55604184,
+                                    0.56452179, 0.56431589, 0.55292103, 0.53914882, 0.54520292,
+                                    0.5103893 , 0.51878004, 0.45919309, 0.5368519 , 0.60557051,
+                                    0.57442253, 0.56843048, 0.59135103, 1, 1])
+#         estimated_delays = np.ones(24)*0.5
+        self.delays: Dict[str, np.array] = {'Bus': estimated_delays.copy(), 'Tram': estimated_delays.copy(),
+                                            'Train': estimated_delays.copy(), 'unknown': estimated_delays.copy()}
 
     def set_stops(self, stops: List['Stop']) -> None:
         self.stops = stops
@@ -140,7 +143,7 @@ class Timetable:
     def __init__(self, table, threshold: int, target_arr_time: datetime):
         # key is RouteStopDep.stop_name, value is (List[arrival_times], List[delay distributions])
         self.table: Dict[RouteStop, List[int]] = table  # timestamps are ascending in rw
-        self.target_arr_time: int = BASELINE_TS + (target_arr_time.hour * 60 + target_arr_time.minute) * 60 +\
+        self.target_arr_time: int = BASELINE_TS + ((target_arr_time.hour + 2) * 60 + target_arr_time.minute) * 60 +\
                                         target_arr_time.second
         self.threshold: int = threshold
         self.AVG_NB_OF_TRANSFER = 3
@@ -187,7 +190,9 @@ class Timetable:
         est_transfers_left = max(1.0, self.AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
         is_safe = new_acc_success > threshold and success_proba > pow(threshold, 1 / est_transfers_left)
+#         return 1.0, True
         return new_acc_success, is_safe
+
 
     def get_stop_arrival_time(self, stop: RouteStop, idx: int) -> int:
         return self.table[stop][idx]
