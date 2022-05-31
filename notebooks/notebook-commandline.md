@@ -155,7 +155,7 @@ hdfs dfs -get /group/abiskop1/project_data/timetableRefacFinal ../new_data/timet
 ```
 
 ```bash
-hdfs dfs -get /group/abiskop1/project_data/stations ../data/stations
+hdfs dfs -get /group/abiskop1/project_data/routestops ../data/routestops
 ```
 
 ```bash

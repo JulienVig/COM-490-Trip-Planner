@@ -185,7 +185,8 @@ class Timetable:
         est_transfers_left = max(1.0, self.AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
         is_safe = new_acc_success > threshold and success_proba > pow(threshold, 1 / est_transfers_left)
-        return new_acc_success, is_safe
+#         return new_acc_success, is_safe
+        return 1.0, True
 
     def get_stop_arrival_time(self, stop: RouteStop, idx: int) -> int:
         return self.table[stop][idx]

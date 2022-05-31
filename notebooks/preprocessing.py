@@ -312,7 +312,7 @@ plot_delay_dist(sample_dist)
 #                 .withColumn("lambda", compute_lambda_udf(col("delays"))).show(4)
 
 # + magic_args="-o lambdas " language="spark"
-# # This cell takes ~30min
+# # This cell takes ~20min
 #
 # finalCols = ["STOP_NAME", "produkt_id", "day_of_week", "hour"]
 #
@@ -327,11 +327,9 @@ plot_delay_dist(sample_dist)
 # lambdas = day.groupBy(finalCols)\
 #                 .agg(struct(collect_list("arrival_delay"), collect_list("count")).alias("delays"))\
 #                 .withColumn("lambda", compute_lambda_udf(col("delays"))).drop('delays')
-
-# + language="spark"
-# lambdas.coalesce(1).write.format("com.databricks.spark.csv").mode("overwrite")\
-#    .option("header", "true").save(REMOTE_PATH + "lambdas.csv")
 # -
+
+lambdas.to_csv('../data.lambdas.csv',index=False)
 
 # # Creating the tables necessary to our graph modelisation
 
