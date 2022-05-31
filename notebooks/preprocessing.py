@@ -31,7 +31,6 @@ get_ipython().run_line_magic(
 # + language="spark"
 # from functools import reduce
 # from math import sin, cos, sqrt, atan2, radians
-# from pyspark.sql.functions import *
 # import pyspark.sql.functions as F
 # from pyspark.sql.types import ArrayType, StringType, IntegerType
 # from pyspark.sql.window import Window
@@ -193,8 +192,13 @@ stopw_dist_500m.to_csv("../data/walking_stops_pairs.csv")
 #
 # Now we need to compute the delay distributions. From `istdaten` we select only the relevant stations (i.e. those lying within the chosen circle) and we wille create a table containing tuples of the form `(Station_name, transport_type, delay_distribution)`. We still need to investigate on the model we will chose to represent these distributions.
 
-# +
-## imports specific to the modeling of the distribution
+# + language="spark"
+# ## imports specific to the modeling of the distribution
+# from pyspark.sql.functions import col, lit, unix_timestamp, from_unixtime, collect_list, dayofweek, hour, when
+# from pyspark.sql.functions import countDistinct, concat, struct
+# from pyspark.sql.functions import udf, explode, split
+# from pyspark.sql.functions import pandas_udf, PandasUDFType
+# -
 
 from scipy.stats import expon
 import numpy as np
@@ -206,7 +210,7 @@ from datetime import datetime
 # real_time = spark.read.orc("/data/sbb/part_orc/istdaten").dropna()
 #
 # arrivals = spark.read.csv(REMOTE_PATH + "routestops", header='true', inferSchema='true')
-# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("*")[0])(col("route_stop_id")))
+# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("*")[0])(F.col("route_stop_id")))
 #
 # print("The Schema is :")
 # real_time
@@ -534,3 +538,5 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # final_stations.show(5, False)
 # -
 final_stations.to_csv('../data/stations.csv', index=False)
+
+
