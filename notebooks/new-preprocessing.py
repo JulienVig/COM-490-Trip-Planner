@@ -54,12 +54,12 @@ get_ipython().run_line_magic(
 # stations = reduce(lambda data, idx: data.withColumnRenamed(oldColumns[idx], newColumns[idx]), xrange(len(oldColumns)), stations)
 #
 # w = Window.partitionBy('STOP_NAME').orderBy(col("STOP_ID").asc())
-# stations = stations.withColumn("row_number",  F.row_number().over(w))\
-#                     .withColumn("NEW_STOP_NAME",
-#                                F.when(col('row_number') == lit(1), col('STOP_NAME'))
-#                                .otherwise(concat(col("STOP_NAME"), lit("_"),  lit(F.row_number().over(w)))))\
-#                                 .drop('STOP_NAME').withColumnRenamed('NEW_STOP_NAME', 'STOP_NAME')
-# stations.show()
+# station_id_translation_table = stations.withColumn("row_number",  F.row_number().over(w))\
+#                                         .filter(col('row_number') == 1).drop('row_number')\
+#                                         .select(['stop_name', 'stop_id'])
+#
+# stations = stations.withColumnRenamed('stop_id', 'old_stop_id').join(station_id_translation_table, 'stop_name', 'inner')
+# stations.orderBy('stop_name').show(10, False)
 # -
 # ## Stops in radius
 
@@ -97,13 +97,18 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # close_stoptimes.count()
+
+# + language="spark"
+# merged_stoptimes = close_stoptimes.withColumnRenamed('stop_id', 'old_stop_id')
+#                                     .join(stations.drop('stop_name', 'stop_lat', 'stop_lon', 'location_type', 'parent_station'), 'old_stop_id')
+# merged_stoptimes.count()
 # -
 
 # As we can see, in a single day arrival times are duplicated for each stop_id, we will therefore drop them
 
 # + language="spark"
-# print(relevant_stoptimes.count())
-# relevant_stoptimes.dropDuplicates(['stop_id','arrival_time' ]).count()
+# print(merged_stoptimes.count())
+# merged_stoptimes.dropDuplicates(['stop_id','arrival_time']).count()
 # -
 
 # ## Trips
@@ -124,11 +129,10 @@ get_ipython().run_line_magic(
 # Create clean_stop_seq such that stop sequence are successive
 
 # + language="spark"
-# selected_stoptimes = close_stoptimes.select("trip_id", "stop_id", "departure_time", "arrival_time", "stop_sequence")
+# selected_stoptimes = merged_stoptimes.select("trip_id", "stop_id", "departure_time", "arrival_time", "stop_sequence")
 # trips_stop_times = trips.select("route_id", "trip_id", "trip_headsign", 'direction_id').join(selected_stoptimes, on="trip_id",how="inner")
-# #trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
 # trips_stop_times = trips_stop_times.withColumnRenamed("route_id", "short_route_id")
-# trips_stop_times = trips_stop_times.withColumn("route_id", concat(col("short_route_id"), lit("&"), col("direction_id")))
+# trips_stop_times = trips_stop_times.withColumn("route_id", concat(col("short_route_id"), lit("+"), col("direction_id"), lit('+'), col("trip_headsign")))
 #
 # w = Window.partitionBy(['trip_id']).orderBy(col("stop_sequence").asc())
 # trips_stop_times = trips_stop_times.withColumn("clean_stop_seq", F.row_number().over(w))
@@ -144,9 +148,9 @@ get_ipython().run_line_magic(
 # + language="spark"
 # w = Window.partitionBy(['trip_id', 'stop_id']).orderBy(col("clean_stop_seq").desc())
 # stop_times_ranked = trips_stop_times.withColumn("trip_stop_index", F.row_number().over(w))\
-#                         .withColumn("trip_stop_id", concat(col("stop_id"), lit("*"), col("trip_stop_index")))\
-#                         .withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("trip_stop_id")))\
-#                         .orderBy(['route_stop_id', 'trip_id', 'clean_stop_seq']).cache()
+#                                     .withColumn("trip_stop_id", concat(col("stop_id"), lit("*"), col("trip_stop_index")))\
+#                                     .withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("trip_stop_id")))\
+#                                     .orderBy(['route_stop_id', 'trip_id', 'clean_stop_seq']).cache()
 # stop_times_ranked.count()
 
 # + language="spark"
@@ -193,7 +197,7 @@ get_ipython().run_line_magic(
 # max_stop_times = stop_times_ranked.withColumn("row",F.row_number().over(window)) \
 #   .filter(col("row") == 1).drop("row").dropDuplicates(["route_id"])
 #
-# max_stop_times = max_stop_times.select(['trip_id', 'clean_stop_seq'])
+# max_stop_times = max_stop_times.select(['trip_id', 'clean_stop_seq']).cache()
 # max_stop_times.show(5)
 # max_stop_times.count()
 
@@ -201,7 +205,7 @@ get_ipython().run_line_magic(
 # max_stop_times.select('clean_stop_seq').groupBy().sum().show()
 
 # + language="spark"
-# actual_routes = stop_times_ranked.join(max_stop_times.select('trip_id'), "trip_id", "inner")
+# actual_routes = stop_times_ranked.join(max_stop_times.select('trip_id'), "trip_id", "inner").cache()
 # actual_routes.count()
 
 # + language="spark"
@@ -234,17 +238,19 @@ get_ipython().run_line_magic(
 # + language="spark"
 # complete_route_stops = route_stops.withColumn("travel_time", col("arrival_time") - col("prev_arrival_time"))\
 #                         .drop("prev_stop_seq", "prev_arrival_time", "arrival_time",
-#                               'matching_stop_seq', 'prev_route_id', 'clean_stop_seq')\
+#                               'matching_stop_seq', 'prev_route_id', 'clean_stop_seq'
+#                               'short_route_id', 'direction_id', 'departure_time', 
+#                               'stop_sequence', 'trip_stop_index', 'trip_stop_id')\
 #                         .cache()
-# complete_route_stops.show(5)
+# complete_route_stops.show(5, False)
 
 # + language="spark"
+# unique_stations = stations.select('stop_id', 'stop_name').dropDuplicates()
 # routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name').withColumnRenamed('route_id', 'short_route_id')
 # final_complete_route_stops = complete_route_stops.join(routes_orc, 'short_route_id', 'inner')\
 #                                                 .drop('route_id')\
-#                                                 .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner')
-#
-# final_complete_route_stops.select('route_desc').show(5)
+#                                                 .join(unique_stations, 'stop_id', 'inner')
+# final_complete_route_stops.count()
 
 # + language="spark"
 # print(final_complete_route_stops.count())
@@ -261,8 +267,8 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 # final_stations = final_complete_route_stops.groupby('stop_id')\
-#                 .agg(F.collect_list(col('route_stop_id')).alias('route_stops'))\
-#                 .join(stations, 'stop_id', 'inner').drop('location_type', 'parent_station').cache()
+#                                             .agg(F.collect_list(col('route_stop_id')).alias('route_stops'))\
+#                                             .join(unique_stations, 'stop_id', 'inner').drop('location_type', 'parent_station').cache()
 # final_stations.show(5, False)
 # + magic_args="-o  final_stations" language="spark"
 # final_stations.count()
