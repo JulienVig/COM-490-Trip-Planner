@@ -44,16 +44,16 @@ Folder architecture:
 ├── scripts
     ├── denver.py          # Implementation of the trip planner algorithm, tightly linked with graph.py
     ├── frontend_utils.py  # Utility functions for main.py, mainly visualization functions
-    ├── graph_init.py      # Function to create and instance the graph objects such as stations, timetable etc
+    ├── graph_init.py      # Function to create and instance the graph objects such as stations, timetable etc
     ├── graph.py           # Contains the class definitions of all the objects used by Denver
     └── trip.py            # Class at the interface between the algo output and the frontend, used to represent a solution
 └── README.md
 ```
 
-Our path-finder algorithm, Denver is inspired from RAPTOR [1]. We adapt the algorithm to our problem, such that it now: 
+Our path-finder algorithm, Denver, is inspired from RAPTOR [1]. We adapt the algorithm to our problem, such that it now: 
 1. finds the latest departure time instead of the earliest arrival time
 2. considers transfer success probability and overall journey success confidence
-3. timetables, as the original assumes we can take a journey at any time (with time dependent travel time)
+3. uses timetables, as the original assumes we can take a journey at any time (with time dependent travel time)
 
 
 
