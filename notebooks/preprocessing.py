@@ -1,3 +1,9 @@
+# # Preprocessing notebook
+#
+# In this notebook we transform the initial raw data into tables that can be loaded easily into the object usable by **Denver**. We need to gather and keep only the information needed for the object defined in [the graph implementation](../scripts/graph.py).
+#
+# ## Spark Session and utils
+
 # %load_ext sparkmagic.magics
 
 # +
@@ -25,8 +31,7 @@ get_ipython().run_line_magic(
 # + language="spark"
 # from functools import reduce
 # from math import sin, cos, sqrt, atan2, radians
-# import pyspark.sql.functions as *
-# import pyspark.sql.functions as F
+# from pyspark.sql.functions import *
 # from pyspark.sql.types import ArrayType, StringType, IntegerType
 # from pyspark.sql.window import Window
 # import numpy as np
@@ -34,20 +39,30 @@ get_ipython().run_line_magic(
 #
 #
 #
+# ## path to write the obtained table in HDFS
 # REMOTE_PATH = "/group/abiskop1/project_data/"
 #
 #
 #
 # def count_nan_null(df):
-#     df.select([F.count(F.when(F.isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
+#     """
+#         displays number of NULL and NaN in each column
+#     """
+#     df.select([count(when(isnan(c) | col(c).isNull(), c)).alias(c) for c in df.columns]).show()
 #
 #
 # def read_orc(fname):
+#     """
+#         reads ORC file from the right period from HDFS
+#     """
 #     df = spark.read.orc("/data/sbb/part_orc/{name}".format(name=fname))
 #     return df.filter((df.year == 2020) & (df.month == 5) & (df.day > 12) & (df.day < 18))
 #
 #
 # def write_hdfs(df, dirname):
+#     """
+#         write back file in HDFS in only one partition
+#     """
 #     df.coalesce(1).write.format("com.databricks.spark.csv").mode('overwrite')\
 #    .option("header", "true").save(REMOTE_PATH + dirname)
 #     
@@ -55,13 +70,13 @@ get_ipython().run_line_magic(
 # spark.conf.set("spark.sql.session.timeZone", "UTC+2")
 # -
 
-# # Stops processing
-# We first filter stops within 15km of Zurich HB 
+# ## Location filtering
+#
+# The graph only focuses on a **15 km radius** circle centered in Zurich HB. We thus load the initial locations of stops in the entire Switzerland and select only those lying in this circle.
 
 # + language="spark"
 # stops = spark.read.csv("/data/sbb/csv/allstops/stop_locations.csv")
-
-# + language="spark"
+#
 # oldColumns = stops.schema.names
 # newColumns = ["STOP_ID", "STOP_NAME", "STOP_LAT", "STOP_LON", "LOCATION_TYPE", "PARENT_STATION"]
 #
@@ -71,7 +86,7 @@ get_ipython().run_line_magic(
 
 # + language="spark"
 #
-# @F.udf
+# @udf
 # def distance_gps(coordinate_struct):
 #     """Return the distance between two GPS coordinates in km"""
 #     
@@ -97,13 +112,16 @@ get_ipython().run_line_magic(
 # hb_df.show(1)
 
 # + language="spark"
-# ZURICH_HB_LAT=47.3781762039461
-# ZURICH_HB_LON=8.54021154209037
+# ZURICH_HB_LAT = 47.3781762039461
+# ZURICH_HB_LON = 8.54021154209037
 #
-# stops_hb = stops.withColumn('ZHB_LAT', F.lit(ZURICH_HB_LAT))\
-#     .withColumn('ZHB_LON', F.lit(ZURICH_HB_LON))
+# stops_hb = stops.withColumn('ZHB_LAT', lit(ZURICH_HB_LAT))\
+#     .withColumn('ZHB_LON', lit(ZURICH_HB_LON))
 #     
-# stops_hb = stops_hb.withColumn('distance_hb',distance_gps(F.struct(stops_hb.STOP_LAT, stops_hb.STOP_LON, stops_hb.ZHB_LAT, stops_hb.ZHB_LON)))
+# stops_hb = stops_hb.withColumn('distance_hb',distance_gps(struct(stops_hb.STOP_LAT, stops_hb.STOP_LON, stops_hb.ZHB_LAT, stops_hb.ZHB_LON)))
+# -
+
+# Sanity check of the obtained stations :
 
 # + language="spark"
 # stops_hb.sample(0.001).show(10)
@@ -114,62 +132,44 @@ get_ipython().run_line_magic(
 # stops_in_radius.count()
 # -
 
-# # Stop times
-# We can now use the previous table to filter the arrival times to keep only trips within the 15km radius
-
-# + language="spark"
-# stopt = read_orc("stop_times")
-# stopt.count()
-
-# + language="spark"
-# stoptime_in_radius = stopt.join(stops_in_radius, on="stop_id",how="inner")
-# print(stoptime_in_radius.count())
-# stoptime_in_radius.show(3)
+# Now that we have the name of every station in the chosen circle, let's filter the matching `stop_id`.
 
 # + magic_args="-o stop_id_in_radius_list" language="spark"
+# stopt = read_orc("stop_times")
+#
+# stoptime_in_radius = stopt.join(stops_in_radius, on="stop_id",how="inner")
+#
 # stop_id_in_radius_list = stops_in_radius.select(stops_in_radius.STOP_ID)
+#
 # -
 
 stop_id_in_radius_list.to_csv("../data/stop_ids_in_radius.csv", index=False)
 
-# # Walking distances
-# Finally, we will create the walking paths between stations less than 10mins of walk from each other
+# ## Walking distances
+# We, then, create the walking paths between stations less than 10mins of walk from each other.
 
 # + language="spark"
-# print(stops_in_radius.count())
-# stops_in_radius.show(3)
-
-# + language="spark"
+#
 # stopw = stops_in_radius.select(["STOP_ID", "STOP_NAME", "STOP_LAT", "STOP_LON", "PARENT_STATION"])
-# stopw.show(5)
-
-# + language="spark"
+#
 # stopw2 = stopw.withColumnRenamed("STOP_ID","STOP_ID_2")\
 #                 .withColumnRenamed("STOP_NAME","STOP_NAME_2")\
 #                 .withColumnRenamed("STOP_LAT","STOP_LAT_2")\
 #                 .withColumnRenamed("STOP_LON","STOP_LON_2")\
 #                 .withColumnRenamed("PARENT_STATION","PARENT_STATION_2")
 # stopw_cross = stopw.crossJoin(stopw2)
+#
 # size = stopw_cross.count()
 # stopw_cross.show(3)
 
-# + language="spark"
+# + magic_args="-o stopw_dist_500m -n -1" language="spark"
 # max_walk_distance_km = 0.5
 # stopw_dist = stopw_cross.withColumn('walk_distance',
-#                                     distance_gps(F.struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, 
+#                                     distance_gps(struct(stopw_cross.STOP_LAT, stopw_cross.STOP_LON, 
 #                                                           stopw_cross.STOP_LAT_2, stopw_cross.STOP_LON_2)))
 # stopw_dist_500m = stopw_dist.filter(stopw_dist.walk_distance <= max_walk_distance_km)\
 #                             .filter(stopw_dist.STOP_NAME != stopw_dist.STOP_NAME_2).cache()
 # stopw_dist_500m.show()
-
-# + language="spark"
-# stopw_dist_500m.sample(0.001).show(5)
-
-# + language="spark"
-# stopw_dist_500m.count()
-
-# + magic_args="-o stopw_dist_500m -n -1" language="spark"
-# stopw_dist_500m
 # -
 
 print(len(stopw_dist_500m),"No duplicate : ",len(stopw_dist_500m.drop_duplicates(subset=["STOP_NAME", "STOP_NAME_2"])))
@@ -187,7 +187,13 @@ stopw_dist_500m["walk_time"] = stopw_dist_500m["walk_distance"] * walk_speed * 1
 stopw_dist_500m = stopw_dist_500m[["STOP_NAME", "STOP_NAME_2", "walk_distance", "walk_time"]].copy()
 stopw_dist_500m.to_csv("../data/walking_stops_pairs.csv")
 
-# # Model delay distributions
+# ## Delay distributions
+#
+#
+# Now we need to compute the delay distributions. From `istdaten` we select only the relevant stations (i.e. those lying within the chosen circle) and we wille create a table containing tuples of the form `(Station_name, transport_type, delay_distribution)`. We still need to investigate on the model we will chose to represent these distributions.
+
+# +
+## imports specific to the modeling of the distribution
 
 from scipy.stats import expon
 import numpy as np
@@ -196,18 +202,10 @@ from datetime import datetime
 
 
 # + language="spark"
-# ## SPARK IMPORTS
-# from functools import reduce
-# from pyspark.sql.types import ArrayType, StringType
-# from pyspark.sql.functions import *
-#
-# REMOTE_PATH = "/group/abiskop1/project_data/"
-
-# + language="spark"
 # real_time = spark.read.orc("/data/sbb/part_orc/istdaten").dropna()
 #
 # arrivals = spark.read.csv(REMOTE_PATH + "routestops", header='true', inferSchema='true')
-# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("$")[0])(col("route_stop_id")))
+# arrivals = arrivals.withColumn("route_id", udf(lambda end_id : end_id.split("*")[0])(col("route_stop_id")))
 #
 # print("The Schema is :")
 # real_time
@@ -223,7 +221,7 @@ from datetime import datetime
 #     ["VERKEHRSMITTEL_TEXT","type_service_2"],
 #     ["ZUSATZFAHRT_TF","additional_trip"],
 #     ["FAELLT_AUS_TF","trip_failed"],
-#     ["HALTESTELLEN_NAME","STOP_NAME"],
+#     ["HALTESTELLEN_NAME","stop_name"],
 #     ["ANKUNFTSZEIT","arrival_time_schedule"],
 #     ["AN_PROGNOSE","arrival_time_actual"],
 #     ["AN_PROGNOSE_STATUS","measure_method_arrival"],
@@ -240,11 +238,11 @@ from datetime import datetime
 # real_time
 # -
 
-# ### Restricting the station to the selected ones where transports arrive
+# #### Restricting the station to the selected ones where transports arrive
 
 # + language="spark"
-# stations = arrivals.select("STOP_NAME").dropDuplicates()
-# real_time = real_time.join(stations, "STOP_NAME")
+# stations = arrivals.select("stop_name").dropDuplicates()
+# real_time = real_time.join(stations, "stop_name")
 #
 # # Compute the delay
 # real_time = real_time.withColumn('arrival_time_schedule', 
@@ -264,15 +262,15 @@ from datetime import datetime
 #                                  .otherwise(col("arrival_delay")/60)).cache()
 # -
 
-# ## EDA of the delay distribution
+# #### EDA of the delay distribution
+#
+# Now we try to plot some of the delay distribution for tuples `(station, transport type)` to try to assess visually the nature of the distribution.
 
-# + language="spark"
+# + magic_args="-o sample_dist" language="spark"
 # delays_distrib = real_time.filter("year == 2021").filter("month == 1")\
 #                         .select(["STOP_NAME", "produkt_id", "arrival_delay"])\
 #                         .groupBy(["STOP_NAME", "produkt_id","arrival_delay"]).count().cache()
 #
-
-# + magic_args="-o sample_dist" language="spark"
 # sample_dist = delays_distrib.filter(delays_distrib.STOP_NAME ==  "Adliswil")\
 #                             .filter(delays_distrib.produkt_id == "Zug")
 
@@ -307,7 +305,11 @@ def plot_delay_dist(sample_dist):
 plot_delay_dist(sample_dist)
 # -
 
-# ### Fit distribution on for all (stops, transport type) pairs
+# #### Fit distribution on for all (stops, transport type) pairs
+#
+# This visual inspection lead us to one hypothesis : an **exponential distribution** ($\approx exp(\lambda)$) would be a good model for this distribution.
+#
+# Let's use some statistics tools to have the best possible estiamtor of the parameter $\lambda$.
 
 # + language="spark"
 #
@@ -316,8 +318,8 @@ plot_delay_dist(sample_dist)
 #     counts = np.array(l[1])
 #     popt, pcov = curve_fit(lambda x, a: a*np.exp(-a*x), l[0], counts / float(counts.sum()))
 #     return float(popt[0])
-
-# + language="spark"
+#
+#
 # # Show how it works on a subset
 # delays_distrib.withColumn("arrival_delay", col("arrival_delay") /60)\
 #                 .groupBy(['STOP_NAME','produkt_id'])\
@@ -344,17 +346,9 @@ plot_delay_dist(sample_dist)
 
 lambdas.to_csv('../data.lambdas.csv',index=False)
 
-# # Creating the tables necessary to our graph modelisation
+# ## Creating the tables necessary to our graph modelisation
 
-# + language="spark"
-#
-#
-
-# + language="spark"
-#
-# -
-
-# ## Loading selected stations (Stops)
+# #### Loading selected stations (Stops)
 
 # + language="spark"
 #
@@ -365,31 +359,22 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # stations = reduce(lambda data, idx: data.withColumnRenamed(oldColumns[idx], newColumns[idx]), xrange(len(oldColumns)), stations)
 #
 # w = Window.partitionBy('STOP_NAME').orderBy(col("STOP_ID").asc())
-# stations = stations.withColumn("row_number",  F.row_number().over(w))\
+# stations = stations.withColumn("row_number",  row_number().over(w))\
 #                     .withColumn("NEW_STOP_NAME",
-#                                F.when(col('row_number') == lit(1), col('STOP_NAME'))
-#                                .otherwise(concat(col("STOP_NAME"), lit("_"),  lit(F.row_number().over(w)))))\
+#                                when(col('row_number') == lit(1), col('STOP_NAME'))
+#                                .otherwise(concat(col("STOP_NAME"), lit("_"),  lit(row_number().over(w)))))\
 #                                 .drop('STOP_NAME').withColumnRenamed('NEW_STOP_NAME', 'STOP_NAME')
 # stations.show()
 # -
-# ## Stops in radius
+# #### Selection stops within the radius
 
 
 # + language="spark"
 # sel_stops = spark.read.csv("/user/benhaim/final-project/stop_ids_in_radius.csv")
 # sel_stops = sel_stops.withColumnRenamed("_c0", "stop_id")
-# sel_stops.show(5)
-# -
-# ## Stop times
-
-# + language="spark"
 # relevant_stoptimes = read_orc("stop_times")
-# relevant_stoptimes.printSchema()
-# -
-
-# ### Stop times in radius
-
-# + language="spark"
+#
+#
 # close_stoptimes = relevant_stoptimes.join(sel_stops, on="stop_id",how="inner")
 #
 # close_stoptimes = close_stoptimes.withColumn("arrival_time_complete", \
@@ -408,22 +393,22 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # relevant_stoptimes.dropDuplicates(['stop_id','arrival_time' ]).count()
 # -
 
-# ## Trips
+# #### Trips
 
 # + language="spark"
 # trips = read_orc("trips")
 # trips.show()
 # -
 
-# ### Checking assumption : pair (trip_id, route_id) is unique
+# #### Checking assumption : pair (trip_id, route_id) is unique
 
 # + language="spark"
 # ispairunique = trips.select("route_id", "trip_id")
 # print(ispairunique.count() == ispairunique.dropDuplicates().count())
 # -
 
-# ### Merging trips and stop_times
-# Create clean_stop_seq such that stop sequence are successive
+# #### Merging trips and stop_times
+# Create `clean_stop_seq` such that stop sequence are successive.
 
 # + language="spark"
 # selected_stoptimes = close_stoptimes.select("trip_id", "stop_id", "departure_time", "arrival_time", "stop_sequence")
@@ -431,11 +416,8 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # #trips_stop_times = trips_stop_times.withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("stop_id")))
 #
 # w = Window.partitionBy(['trip_id']).orderBy(col("stop_sequence").asc())
-# trips_stop_times = trips_stop_times.withColumn("clean_stop_seq", F.row_number().over(w))
+# trips_stop_times = trips_stop_times.withColumn("clean_stop_seq", row_number().over(w))
 # trips_stop_times.count()
-
-# + language="spark"
-# trips_stop_times.filter(col("clean_stop_seq") !=  col('stop_sequence')).dropDuplicates(["trip_id"]).count()
 # -
 
 # Some routes loop over the same stops, therefore we add the occurence index in the stop id for each trip to create
@@ -443,44 +425,41 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 
 # + language="spark"
 # w = Window.partitionBy(['trip_id', 'stop_id']).orderBy(col("clean_stop_seq").desc())
-# stop_times_ranked = trips_stop_times.withColumn("trip_stop_index", F.row_number().over(w))\
+# stop_times_ranked = trips_stop_times.withColumn("trip_stop_index", row_number().over(w))\
 #                         .withColumn("trip_stop_id", concat(col("stop_id"), lit("*"), col("trip_stop_index")))\
 #                         .withColumn("route_stop_id", concat(col("route_id"), lit("&"), col("trip_stop_id")))\
 #                         .orderBy(['route_stop_id', 'trip_id', 'clean_stop_seq']).cache()
-# stop_times_ranked.count()
-
-# + language="spark"
+#
+#
 # ispairunique = stop_times_ranked.select("trip_stop_id", "trip_id")
 # print(ispairunique.count() == ispairunique.dropDuplicates().count())
-
-# + magic_args="   " language="spark"
+#
+#
 # cols = ["route_stop_id", "arrival_time"]
+#
 # duplicates = stop_times_ranked.join(
-#     stop_times_ranked.groupBy(cols).agg((F.count("*")>1).cast("int").alias("Duplicate_indicator")),
-#     on=cols,
-#     how="inner"
-# ).cache()
-
-# + language="spark"
-# duplicates.filter(col("Duplicate_indicator") > 0).count()
-
-# + language="spark"
+#                 stop_times_ranked.groupBy(cols).agg((count("*")>1).cast("int").alias("Duplicate_indicator")),
+#                 on=cols,
+#                 how="inner")\
+#                 .cache()
+#
+#
 # routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name')
 #
 # duplicates.filter(col("Duplicate_indicator") > 0).join(routes_orc, 'route_id', 'inner')\
 #             .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner').orderBy(cols).show()
 # -
 
-# ### Building time tables
+# ### Building timetables
 #
-# We drop duplicated arrival times for the same (route, stop)
+# The final table that will hold for every **Route Stop** in the considered radius, the list of all the departures.
 
 # + language="spark"
 # timetable = stop_times_ranked.select(["route_stop_id", "arrival_time"])\
 #                     .dropDuplicates(["route_stop_id", "arrival_time"]).cache()
 
 # + language="spark"
-# write_hdfs(timetable, "timetableRefacFinal")
+# #write_hdfs(timetable, "timetableRefacFinal")
 # -
 
 # ### Building Route stops
@@ -489,12 +468,11 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 #
 # window = Window.partitionBy("trip_id").orderBy(col("clean_stop_seq").desc())
 #
-# max_stop_times = stop_times_ranked.withColumn("row",F.row_number().over(window)) \
+# max_stop_times = stop_times_ranked.withColumn("row",row_number().over(window)) \
 #   .filter(col("row") == 1).drop("row").dropDuplicates(["route_id"])
 #
 # max_stop_times = max_stop_times.select(['trip_id', 'clean_stop_seq'])
-# max_stop_times.show(5)
-# max_stop_times.count()
+#
 
 # + language="spark"
 # max_stop_times.select('clean_stop_seq').groupBy().sum().show()
@@ -504,13 +482,9 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # actual_routes.count()
 
 # + language="spark"
-# print(actual_routes.count())
-# actual_routes.dropDuplicates(['route_stop_id']).count()
-
-# + language="spark"
 #
 # w = Window.partitionBy("route_id").orderBy(col("clean_stop_seq").desc())
-# route_stops = actual_routes.withColumn("actual_stop_seq", F.row_number().over(w)).drop("trip_id", "clean_stop_seq")
+# route_stops = actual_routes.withColumn("actual_stop_seq", row_number().over(w)).drop("trip_id", "clean_stop_seq")
 # print(actual_routes.count())
 # print(route_stops.count())
 #
@@ -528,43 +502,34 @@ lambdas.to_csv('../data.lambdas.csv',index=False)
 # route_stops = route_stops.join(prevs, (prevs.prev_stop_seq == route_stops.matching_stop_seq) \
 #                                       & (prevs.prev_route_id == route_stops.route_id), "leftouter").cache()
 #
-# print(route_stops.count())
-
-# + language="spark"
+#
 # complete_route_stops = route_stops.withColumn("travel_time", col("arrival_time") - col("prev_arrival_time"))\
 #                         .drop("prev_stop_seq", "prev_arrival_time", "arrival_time",
 #                               'matching_stop_seq', 'prev_route_id', 'clean_stop_seq')\
 #                         .cache()
-# complete_route_stops.show(5)
-
-# + language="spark"
+#
 # routes_orc = read_orc("routes").select('route_id', 'route_desc', 'route_short_name')
 # final_complete_route_stops = complete_route_stops.join(routes_orc, 'route_id', 'inner')\
 #                                                 .drop('route_id')\
 #                                                 .join(stations.select('stop_id', 'stop_name'), 'stop_id', 'inner')
 #
-# final_complete_route_stops.select('route_desc').show(5)
-
-# + language="spark"
-# print(final_complete_route_stops.count())
-# print(complete_route_stops.count())
+# final_complete_route_stops.show(5)
 
 # + language="spark"
 # count_nan_null(final_complete_route_stops)
 
 # + language="spark"
-# write_hdfs(final_complete_route_stops, "routestops")
+# #write_hdfs(final_complete_route_stops, "routestops")
 # -
 
-# # Stations
+# ## Stations
+#
+# The final table we need to build is **stops**.
 
-# + language="spark"
+# + magic_args="-o  final_stations" language="spark"
 # final_stations = final_complete_route_stops.groupby('stop_id')\
-#                 .agg(F.collect_list(col('route_stop_id')).alias('route_stops'))\
+#                 .agg(collect_list(col('route_stop_id')).alias('route_stops'))\
 #                 .join(stations, 'stop_id', 'inner').drop('location_type', 'parent_station').cache()
 # final_stations.show(5, False)
-# + magic_args="-o  final_stations" language="spark"
-# final_stations.count()
 # -
-
 final_stations.to_csv('../data/stations.csv', index=False)
