@@ -32,6 +32,8 @@ Open the notebook `./notebooks/main.py` and run it. The last cell is an ipywidge
 
 ### How it works
 
+You can download the project video from SwitchDrive [here](https://filesender.switch.ch/filesender2/?s=download&token=6e1b8a18-3369-4b64-ac47-50ae42261c26)
+
 Folder architecture:
 ```
 .
@@ -54,7 +56,6 @@ Our path-finder algorithm, Denver, is inspired from RAPTOR [1]. We adapt the alg
 1. finds the latest departure time instead of the earliest arrival time
 2. considers transfer success probability and overall journey success confidence
 3. uses timetables, as the original assumes we can take a journey at any time (with time dependent travel time)
-
 
 
 [1] Delling et al. Round-Based Public Transit Routing
