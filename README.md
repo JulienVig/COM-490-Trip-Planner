@@ -26,7 +26,38 @@
 ----
 ## HOW-TO
 
-This section intentionally blank. Students must complete it with instructions on how to use the code in their project.
+### How to use
+
+Open the notebook `./notebooks/main.py` and run it. The last cell is an ipywidget that lets you play with the algorithm, by choosing stations, confidence threshold etc.
+
+### How it works
+
+Folder architecture:
+```
+.
+├── data                   # data files created during the preprocessing
+├── figs                   # plots and figures used for the presentation
+├── notebooks
+    ├── main.py            # Main notebook, frontend to use Denver, our trip planner
+    ├── mock-graph.py      # Let users create a custom graph and evaluate Denver on it
+    └── preprocessing.py   # All the preprocessing is contained in this notebook
+├── scripts
+    ├── denver.py          # Implementation of the trip planner algorithm, tightly linked with graph.py
+    ├── frontend_utils.py  # Utility functions for main.py, mainly visualization functions
+    ├── graph_init.py      # Function to create and instance the graph objects such as stations, timetable etc
+    ├── graph.py           # Contains the class definitions of all the objects used by Denver
+    └── trip.py            # Class at the interface between the algo output and the frontend, used to represent a solution
+└── README.md
+```
+
+Our path-finder algorithm, Denver is inspired from RAPTOR [1]. We adapt the algorithm to our problem, such that it now: 
+1. finds the latest departure time instead of the earliest arrival time
+2. considers transfer success probability and overall journey success confidence
+3. timetables, as the original assumes we can take a journey at any time (with time dependent travel time)
+
+
+
+[1] Delling et al. Round-Based Public Transit Routing
 
 [top](#Content)
 
