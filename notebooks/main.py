@@ -17,12 +17,5 @@ all_widget_in_one, output = get_widgets(stations, timetable, cleanup)
 
 display(all_widget_in_one, output)
 
-from datetime import datetime
-print(datetime.fromtimestamp(stations['Zürich HB'].arr_time).strftime('%Y-%m-%d %H:%M:%S'))
-print(stations['Zürich HB'].arr_time/3600)
-print(stations['Uster'].arr_time/3600)
-
-print(datetime.fromtimestamp(1589378700).strftime('%Y-%m-%d %H:%M:%S'))
-
 
 
