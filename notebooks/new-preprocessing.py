@@ -60,7 +60,11 @@ get_ipython().run_line_magic(
 #
 # stations = stations.withColumnRenamed('stop_id', 'old_stop_id').join(station_id_translation_table, 'stop_name', 'inner')
 # stations.orderBy('stop_name').show(10, False)
+# + language="spark"
+# stations.filter(col('stop_id') == 8579991).show()
+# merged_stoptimes.filter(col('stop_id') == 8579991).show()
 # -
+
 # ## Stops in radius
 
 
@@ -99,10 +103,12 @@ get_ipython().run_line_magic(
 # close_stoptimes.count()
 
 # + language="spark"
-# merged_stoptimes = close_stoptimes.withColumnRenamed('stop_id', 'old_stop_id')
+# merged_stoptimes = close_stoptimes.withColumnRenamed('stop_id', 'old_stop_id')\
 #                                     .join(stations.drop('stop_name', 'stop_lat', 'stop_lon', 'location_type', 'parent_station'), 'old_stop_id')
 # merged_stoptimes.count()
 # -
+
+
 
 # As we can see, in a single day arrival times are duplicated for each stop_id, we will therefore drop them
 
@@ -266,9 +272,10 @@ get_ipython().run_line_magic(
 # # Stations
 
 # + language="spark"
+# unique_stations = stations.drop('location_type', 'parent_station').dropDuplicates(['stop_id'])
 # final_stations = final_complete_route_stops.groupby('stop_id')\
 #                                             .agg(F.collect_list(col('route_stop_id')).alias('route_stops'))\
-#                                             .join(unique_stations, 'stop_id', 'inner').drop('location_type', 'parent_station').cache()
+#                                             .join(unique_stations, 'stop_id', 'inner').cache()
 # final_stations.show(5, False)
 # + magic_args="-o  final_stations" language="spark"
 # final_stations.count()

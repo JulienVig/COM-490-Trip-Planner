@@ -15,6 +15,8 @@ class Node:
         self.n_changes = 0  # Number of changes currently done during the whole trip
 
     def update_arrival(self, new_arr_time: int, new_prev_node: 'Node', new_acc_success: float, new_n_changes) -> None:
+        if new_arr_time > self.arr_time:
+            print('oupsi')
         self.arr_time = new_arr_time
         self.previous_node = new_prev_node
         self.acc_success = new_acc_success
@@ -177,7 +179,7 @@ class Timetable:
             success_proba ^ avg_nb_transfer > threshold  =>  success_proba > pow(threshold, 1 / avg_nb_transfer)
         :return: (new_acc_success, is_safe)
         """
-        wait_time = max(10, wait_time)
+        wait_time = max(1, wait_time)
         current_hour: int = RealSolution.convert_time_to_rw(rw_previous_arrival_time, self.target_arr_time).hour
         lambda_ = stop.station.delays[stop.transport_type][current_hour]
         success_proba = 1 - np.exp(- lambda_ * wait_time / 60)
@@ -185,8 +187,7 @@ class Timetable:
         est_transfers_left = max(1.0, self.AVG_NB_OF_TRANSFER - stop.n_changes)
         # We ensure that the risk taken at each transfer is sustainable enough for a trip with an avg nb of transfer
         is_safe = new_acc_success > threshold and success_proba > pow(threshold, 1 / est_transfers_left)
-#         return new_acc_success, is_safe
-        return 1.0, True
+        return new_acc_success, is_safe
 
     def get_stop_arrival_time(self, stop: RouteStop, idx: int) -> int:
         return self.table[stop][idx]

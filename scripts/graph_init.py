@@ -42,16 +42,19 @@ def init_graph():
     routestops_df['route_desc'] = routestops_df.route_desc.replace(transport_type)
     routestops = {}                               
     for i, row in routestops_df.iterrows():
-        routestops[row['route_stop_id']] = RouteStop(row['route_stop_id'],row['stop_name'],
-                                                    stations[row['stop_name']], row['actual_stop_seq'], 
-                                                    row['route_name'], row['route_desc'], 
-                                                    row['travel_time'], None, row['trip_headsign'])
+        try:
+            routestops[row['route_stop_id']] = RouteStop(row['route_stop_id'],row['stop_name'],
+                                                        stations[row['stop_name']], row['actual_stop_seq'], 
+                                                        row['route_name'], row['route_desc'], 
+                                                        row['travel_time'], None, row['trip_headsign'])
+        except:
+            print(row)
 
     for i, row in routestops_df.iterrows():
         if type(row['prev_route_stop_id']) != float:
             routestops[row['route_stop_id']].set_prev_stop(routestops[row['prev_route_stop_id']])
             
-    table_df = pd.read_csv(join(DATA,  'timetable.csv'))
+    table_df = pd.read_csv(join(DATA, 'timetable.csv'))
     hours = table_df.groupby("route_stop_id").apply(lambda row: list(sorted(row.arrival_time))).to_frame()
     
     timetable = {}
