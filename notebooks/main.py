@@ -18,4 +18,3 @@ all_widget_in_one, output = get_widgets(stations, timetable, cleanup)
 display(all_widget_in_one, output)
 
 
-
