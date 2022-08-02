@@ -1,6 +1,16 @@
-# Final Assignment: Robust Journey Planning
+Robust Journey Planning
 
-**Executive summary:** build a robust SBB journey planner for the Zürich area, and make a short video presentation of it - to be done in **groups of 4 or 5**, before **midnight of May 29**.
+| |Overview  | 
+| - | - |
+|Course| COM-490 Large-scale data science for real-world data |
+| Year | Spring 2022 |
+| Final Grade | **6 / 6** |
+| Languages | Python, Spark, Hive, HDFS |
+| Team size | 4 |
+
+In the context of the course project, we implemented a journey planner which received the maximal grade. The aim of the project is to leverage the Swiss public transport data to implement a journey planner in the area of Zurich. In particular, the planner must assess the confidence of each change to measure the probability of success of a trip. This way, users can choose a confidence threshold to filter routes recommended by the trip planner.
+For that purpose, we implemented and adapted the [RAPTOR algorithm](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf), developed by Microsoft and used by OpenStreetPlanner, to take into account the success probabilites.
+The data, stored as a Hive table, was processed using PySpark and the algorithm was implemented in Python.
 
 ----
 ## Content
@@ -31,8 +41,6 @@
 Open the notebook `./notebooks/main.py` and run it. The last cell is an ipywidget that lets you play with the algorithm, by choosing stations, confidence threshold etc.
 
 ### How it works
-
-You can download the project video from SwitchDrive [here](https://filesender.switch.ch/filesender2/?s=download&token=6e1b8a18-3369-4b64-ac47-50ae42261c26)
 
 Folder architecture:
 ```
