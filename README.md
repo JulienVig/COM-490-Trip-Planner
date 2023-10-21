@@ -8,7 +8,7 @@
 | Languages | Python, Spark, Hive, HDFS |
 | Team size | 4 |
 
-In the context of the course project, we implemented a journey planner which received the maximal grade. The aim of the project is to leverage the Swiss public transport data to implement a journey planner in the area of Zurich. Notably, our trip planner assesses the confidence of each connection to measure the probability of success of a trip, letting the user choose the connection confidence level of his or her journey.
+In the context of the course project, we implemented a journey planner which received the maximal grade. The aim of the project was to leverage the Swiss public transport data to implement a public transit journey planner in the area of Zurich. Notably, our trip planner assesses the success rate of each connection, letting the user choose the connection confidence level of his or her journey.
 For that purpose, we implemented and adapted the [RAPTOR algorithm](https://www.microsoft.com/en-us/research/wp-content/uploads/2012/01/raptor_alenex.pdf), developed by Microsoft and used by OpenStreetPlanner, to take into account the success probabilites, by measuring transit delay frequencies at each station and measuring connection success probabilities.
 The data, stored as a Hive table, was processed using PySpark and the algorithm was implemented in Python.
 
